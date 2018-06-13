@@ -1,0 +1,116 @@
+
+BIN_DIR=./bin
+
+BINS=$(BIN_DIR)/output_test
+# BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_stencil
+# BINS=$(BIN_DIR)/output_stencil $(BIN_DIR)/output_dot_product $(BIN_DIR)/output_matrix_mul
+
+# GECKO_FILES=geckoGraph.cpp geckoRuntime.cpp geckoUtilsAcc.cpp 
+GECKO_FILES=geckoRuntime.cpp geckoHierarchicalTree.cpp 
+GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
+
+CUDA_HOME = /usr/local/cuda-9.0
+
+ENABLE_CUDA = OFF
+ENABLE_DEBUG = OFF
+
+LDFLAGS=-lm
+
+NVCC=nvcc
+CUDAFLAGS=-w -std c++11
+
+
+CXX=g++
+CXXFLAGS=-w 
+LDFLAGS=-lm
+# OUTPUT_EXE=output_test
+# CXXFLAGS += -acc -ta=tesla,multicore
+
+CXXFLAGS += -DINFO
+
+# CXX=pgc++
+# CXXFLAGS=-w
+# LDFLAGS=-lm
+# OUTPUT_EXE=output_test
+# CXXFLAGS += -acc -ta=tesla,multicore
+
+CXXFLAGS_DEBUG=-std=c++11 -O0 -g -m64
+CXXFLAGS_RELEASE=-std=c++11 -O3 -m64
+
+
+
+OUTPUT_EXE=output_test 
+STENCIL_EXE = output_stencil
+DOT_PRODUCT_EXE = output_dot_product
+MATRIX_MUL_EXE = output_matrix_mul
+
+
+
+
+
+
+ifeq ($(ENABLE_CUDA), ON)
+CXXFLAGS += -DCUDA_ENABLED -I$(CUDA_HOME)/include/
+CUDAFLAGS+= -DCUDA_ENABLED -I$(CUDA_HOME)/include/
+LDFLAGS += 	-L$(CUDA_HOME)/lib64 -lcudart
+endif
+
+
+
+ifeq ($(ENABLE_DEBUG), ON)
+CXXFLAGS+=$(CXXFLAGS_DEBUG) -DDEBUG
+CUDAFLAGS+=-DDEBUG -O0 -g
+else
+CXXFLAGS+=$(CXXFLAGS_RELEASE)
+endif
+
+
+
+.PHONY: doTransformation clean
+
+
+
+all: doTransformation $(BINS)
+
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+doTransformation:
+	python geckoTranslate.py
+
+
+$(BIN_DIR)/test: test.o $(BIN_DIR)
+	${CXX} ${CXXFLAGS} test.cpp -o $(BIN_DIR)/test
+
+
+# %.o: %.cpp
+# 	${NVCC} ${CXXFLAGS} -c $< -o $@
+
+geckoHierarchicalTree.o: geckoHierarchicalTree.cpp 
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+	# $(NVCC) $(CUDAFLAGS) -c $< -o $@
+
+geckoRuntime.o: geckoRuntime.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+	# $(NVCC) $(CUDAFLAGS) -c $< -o $@
+
+geckoUtilsAcc.o: geckoUtilsAcc.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+
+$(BIN_DIR)/${OUTPUT_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_test.cpp 
+	${CXX} ${CXXFLAGS} -o $(BIN_DIR)/${OUTPUT_EXE} ${GECKO_OBJ_FILES} output_test.cpp ${LDFLAGS}
+
+$(BIN_DIR)/${STENCIL_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_stencil.cpp
+	${CXX} ${CXXFLAGS} -o $(BIN_DIR)/${STENCIL_EXE} ${GECKO_OBJ_FILES} output_stencil.cpp ${LDFLAGS}
+
+$(BIN_DIR)/${DOT_PRODUCT_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_dot_product.cpp
+	${CXX} ${CXXFLAGS} -o $(BIN_DIR)/${DOT_PRODUCT_EXE} ${GECKO_OBJ_FILES} output_dot_product.cpp ${LDFLAGS}
+
+$(BIN_DIR)/${MATRIX_MUL_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_matrix_mul.cpp
+	${CXX} ${CXXFLAGS} -o $(BIN_DIR)/${MATRIX_MUL_EXE} ${GECKO_OBJ_FILES} output_matrix_mul.cpp ${LDFLAGS}
+
+clean:
+	rm -rf *.o $(BIN_DIR)
+
