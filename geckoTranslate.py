@@ -291,8 +291,8 @@ class SourceFile(object):
 			i += 1
 
 		if end:
-			ret = "}\n#pragma acc wait\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
-			return ret
+			self.parsing_region_state = -1
+			return self.parseRegionKernel(keywords, lineNumber)
 
 		if len(exec_pol) > 0 and len(exec_pol_int) > 0:
 			print "Line: %d - Cannot have 'exec_pol' and 'exec_pol_int' at the same time." % (lineNumber)
@@ -331,7 +331,16 @@ class SourceFile(object):
 
 
 	def parseRegionKernel(self, keywords, lineNumber):
-		if self.parsing_region_state == 1:
+		if self.parsing_region_state == -1:
+			# we are dealing with the OpenACC pragma line after our directive
+
+			ret = "}\n#pragma acc wait\nprintf(\"hello from python script\\n\");\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
+
+			self.parsing_region_state = 0
+
+			return ret
+
+		elif self.parsing_region_state == 1:
 			# we are dealing with the OpenACC pragma line after our directive
 
 			line = ' '.join(keywords)
@@ -369,12 +378,16 @@ class SourceFile(object):
 
 			line = '{\n'
 			line += "int *beginLoopIndex, *endLoopIndex, devCount, devIndex;\n"
-			line += "GeckoLocation *dev;\n"
-			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, beginLoopIndex, endLoopIndex, &dev);\n' % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
+			line += "GeckoLocation **dev;\n"
+			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev);\n' % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
 			line += "for(devIndex=0;devIndex < devCount;devIndex++) {\n"
-			line += "\t%sSetDevice(&dev[devIndex]);\n" % (pragma_prefix_funcname)
-			line += "%s  deviceptr(%s) async(devIndex) \n" % (self.pragmaForRegion, self.var_list)
+			# line += "printf(\"begin: \%d  ---  end: \%d\\n\", beginLoopIndex[devIndex], endLoopIndex[devIndex]);\n"
+			line += "\t%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
+			line += "%s  " % (self.pragmaForRegion)
+			line += "  deviceptr(%s) " % (self.var_list)
+			line += " async(devIndex) "
+			line += " \n"
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
 			if paranthesis is None:
 				line += "\n"

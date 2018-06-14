@@ -12,7 +12,7 @@ GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
 CUDA_HOME = /usr/local/cuda-9.0
 
 ENABLE_CUDA = OFF
-ENABLE_DEBUG = OFF
+ENABLE_DEBUG = ON
 
 LDFLAGS=-lm
 
@@ -26,17 +26,19 @@ LDFLAGS=-lm
 # OUTPUT_EXE=output_test
 # CXXFLAGS += -acc -ta=tesla,multicore
 
-CXXFLAGS += -DINFO
 
-# CXX=pgc++
-# CXXFLAGS=-w
-# LDFLAGS=-lm
-# OUTPUT_EXE=output_test
-# CXXFLAGS += -acc -ta=tesla,multicore
+CXX=pgc++
+CXXFLAGS=-w
+LDFLAGS=-lm
+OUTPUT_EXE=output_test
+CXXFLAGS += -acc -ta=tesla,multicore
+
 
 CXXFLAGS_DEBUG=-std=c++11 -O0 -g -m64
 CXXFLAGS_RELEASE=-std=c++11 -O3 -m64
 
+
+CXXFLAGS += -DINFO
 
 
 OUTPUT_EXE=output_test 
@@ -70,7 +72,8 @@ endif
 
 
 
-all: doTransformation $(BINS)
+# all: doTransformation $(BINS)
+all: $(BINS)
 
 
 $(BIN_DIR):
@@ -111,6 +114,9 @@ $(BIN_DIR)/${DOT_PRODUCT_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_dot_product.
 $(BIN_DIR)/${MATRIX_MUL_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_matrix_mul.cpp
 	${CXX} ${CXXFLAGS} -o $(BIN_DIR)/${MATRIX_MUL_EXE} ${GECKO_OBJ_FILES} output_matrix_mul.cpp ${LDFLAGS}
 
+dot: $(wildcard *.dot)
+	dot -Tpdf $< -o $<.pdf
+
 clean:
-	rm -rf *.o $(BIN_DIR)
+	rm -rf *.o $(BIN_DIR) *.dot
 

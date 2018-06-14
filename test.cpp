@@ -53,13 +53,13 @@ int main() {
 	// // #pragma gecko put(A.X[0:N/2],F.YY[0:N/2]) 
 
 
-	int a = 5000;
+	int a = 0;
 	int b = N;
 
 	#pragma gecko region at("LocA") exec_pol("static") variable_list(Y)
 	// #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
 	#pragma acc parallel loop 
-	for (int i = a; i>=b; i--) {
+	for (int i = a; i>b; i--) {
 		Y[i] *= 2.0;
 	}
 	#pragma gecko region end

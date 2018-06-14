@@ -1,6 +1,8 @@
 
 #include "geckoRuntime.h"
+#include <string.h>
 
+#include <openacc.h>
 
 
 class GeckoCUDAProp {
@@ -525,7 +527,7 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 }
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary, int incremental_direction,
-					   int *devCount, int *beginLoopIndex, int *endLoopIndex, GeckoLocation **dev) {
+					   int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex, GeckoLocation ***out_dev) {
 	geckoInit();
 
 #ifdef INFO
@@ -551,9 +553,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
 	*devCount = children_names.size();
 
-	beginLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
-	endLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
-	dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * (*devCount));
+	int *beginLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
+	int *endLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
+	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * (*devCount));
 
 	if(strcmp(exec_pol, "static") == 0) {
 		int start = initval;
@@ -563,17 +565,20 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			beginLoopIndex[i] = start;
 			endLoopIndex[i] = end;
 			dev[i] = children_names[i].loc;
-			printf("[%d, %d]\n", start, end);
-			if(incremental_direction)
-				start += children_names[i].iterationCount;
-			else
-				start -= children_names[i].iterationCount;
+			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+//			if(incremental_direction)
+//				start += children_names[i].iterationCount;
+//			else
+//				start -= children_names[i].iterationCount;
+			start = end;
 		}
-	} else if(strcmp(exec_pol, "static") == 0) {
-
 	} else if(strcmp(exec_pol, "flatten") == 0) {
 
 	}
+
+	*out_dev = dev;
+	*out_beginLoopIndex = beginLoopIndex;
+	*out_endLoopIndex = endLoopIndex;
 
 	return GECKO_ERR_SUCCESS;
 }
@@ -583,10 +588,13 @@ GeckoError geckoSetDevice(GeckoLocation *device) {
 	fprintf(stderr, "===GECKO: Setting device to %s\n", device->getLocationName().c_str());
 #endif
 
+
+	acc_set_device_num(0, acc_device_host);
+
 	return GECKO_ERR_SUCCESS;
 }
 
-void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation *dev) {
+void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev) {
 	free(beginLoopIndex);
 	free(endLoopIndex);
 

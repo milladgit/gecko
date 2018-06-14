@@ -45,9 +45,9 @@ GeckoError geckoHierarchyDeclare(char operation, const char *child_name, const c
 GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location);
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary, int incremental_direction,
-					   int *devCount, int *beginLoopIndex, int *endLoopIndex, GeckoLocation **dev);
+					   int *devCount, int **beginLoopIndex, int **endLoopIndex, GeckoLocation ***out_dev);
 GeckoError geckoSetDevice(GeckoLocation *device);
-void 	   geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation *dev);
+void 	   geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev);
 
 
 void geckoDrawHierarchyTree(char *rootNode, char *filename);
