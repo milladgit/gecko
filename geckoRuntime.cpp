@@ -580,7 +580,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 				end = boundary;
 #ifdef INFO
 			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
-				   children_names[i].iterationCount);
+				   (end - start) * (incremental_direction ? 1 : -1)  );
 			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
 #endif
 			beginLoopIndex[i] = start;
