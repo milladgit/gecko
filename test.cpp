@@ -10,61 +10,87 @@ int main() {
 
 
 	#pragma gecko location name("LocA") type("NODE_MEMORY")
-	#pragma gecko location name("LocB","LocC") type("virtual")
-	#pragma gecko location name("LocQ") type("host")
-	#pragma gecko location name("LocW", "LocWWW", "LocX",  "LocY") type("virtual")
-	#pragma gecko location name("LocD","LocE") type("host")
-	// #pragma gecko location name("LocF") type("tesla")
-	// #pragma gecko location name("LocG") all type("tesla")
-	// #pragma gecko location name(loc_name) all type("tesla")
-	// #pragma gecko location name("LocH[0:2]") type("multicore")
-	// #pragma gecko location name("LocI[0:n]") type("multicore")
+	#pragma gecko location name("LocN","LocG") type("virtual")
+	#pragma gecko location name("LocN1", "LocN2") type("host")
+	#pragma gecko location name("LocG1") type("tesla")
 
 	char op = '+';
-	#pragma gecko hierarchy children(op:"LocB","LocC") parent("LocA")
-	#pragma gecko hierarchy children(op:"LocD","LocE") parent("LocB")
-	// #pragma gecko hierarchy children(op:"LocQ") all parent("LocB")
-	// #pragma gecko hierarchy children(op:"LocW") parent("LocB")
-	// #pragma gecko hierarchy children(op:"LocX") parent("LocB")
-	#pragma gecko hierarchy children(+:"LocWWW") parent("LocC")
-	// #pragma gecko hierarchy children(-:"LocWWW") parent("LocC")
-	#pragma gecko hierarchy children(+:"LocY") parent("LocC")
-	#pragma gecko hierarchy children(+:"LocQ") parent("LocB")
-	// #pragma gecko hierarchy children(-:"LocD","LocE") parent("LocB")
-	// #pragma gecko hierarchy children(cmd:"LocF") parent("LocC")
-	// #pragma gecko hierarchy children(cmd:"LocG") parent("LocC")
-	// #pragma gecko hierarchy children(cmd:loc_name) all parent("LocC")
-	// #pragma gecko hierarchy children(cmd:"LocI[2:4]") parent("LocC")
+	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
+	#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
+	#pragma gecko hierarchy children(+:"LocG1") parent("LocG")
 
 
 	#pragma gecko draw root("LocA")
 
 
 	int N = 2000;
-	double *X, *Y, *Y2, *Z, *YY, *ZZ;
-	// #pragma gecko memory allocate(X[0:N]) type(double) location("LocA")
-	// #pragma gecko memory allocate(X2) type(double) location("LocA")
-	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocB") 
-	#pragma gecko memory allocate(Y2[0:N]) type(double) location("LocD") 
-	// #pragma gecko memory allocate(Z[0:N]) type(double) location("LocC") 
-	// #pragma gecko memory allocate(YY[0:N]) type(double) location("LocF") 
-	// #pragma gecko memory allocate(ZZ[0:N]) type(double) location("LocD") 
-
-	// // #pragma gecko put(A.X[0:N/2],F.YY[0:N/2]) 
+	double *X, *Y, *Z;
+	#pragma gecko memory allocate(X[0:N]) type(double) location("LocN") 
+	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocG") 
+	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 
 
-	int a = 0;
-	int b = N;
+	for (int i = 0; i<N; i++) {
+		Z[i] = 0.0;
+	}
 
-	#pragma gecko region at("LocA") exec_pol("static") variable_list(Y)
-	// #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+
+	int a, b;
+
+	// a = 1821;
+	// b = 23;
+
+	// #pragma gecko region at("LocG") exec_pol("flatten") variable_list(Y)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i>=b; i--) {
+	// 	Y[i] *= 2.0;
+	// }
+	// #pragma gecko region end
+
+
+	// a = 0;
+	// b = N;
+	// #pragma gecko region at("LocN") exec_pol("flatten") variable_list(X)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i<b; i++) {
+	// 	X[i] *= 2.0;
+	// }
+	// #pragma gecko region end
+
+
+
+	// a = 0;
+	// b = N;
+	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i<b; i++) {
+	// 	Z[i] = 2.0;
+	// }
+	// #pragma gecko region end
+
+
+	a = 0;
+	b = N;
+	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
+	#pragma gecko region at("LocN") exec_pol("range:[100, 100]") variable_list(Z)
 	#pragma acc parallel loop 
-	for (int i = a; i>b; i--) {
-		Y[i] *= 2.0;
+	for (int i = a; i<b; i++) {
+		Z[i] = 2.0;
 	}
 	#pragma gecko region end
 
 
+
+	printf("Checking...\n");
+	for(int i=0;i<200;i++) {
+		if(Z[i] != 2.0) {
+			printf("Error in index: %d\n", i);
+		}
+	}
+	printf("Checking...Done\n");
 
 
 	printf("Hello World!\n");

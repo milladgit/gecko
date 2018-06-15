@@ -46,3 +46,10 @@ def parsePragmaACC(line):
 		return None
 	return match.group('pargma_content')
 
+
+def parseRangePolicy(policy_type, policy):
+	pattern = r'%s:\[(?P<ranges>[\w\s,]+)\]' % (policy_type)
+	match = re.search(pattern, policy)
+	if match is None:
+		return None
+	return match.group('ranges')

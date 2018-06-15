@@ -1,8 +1,16 @@
 
 #include "geckoRuntime.h"
 #include <string.h>
+#include <math.h>
 
 #include <openacc.h>
+
+
+#ifdef CUDA_ENABLED
+#include <cuda_runtime.h>
+#endif
+
+#include "geckoUtils.h"
 
 
 class GeckoCUDAProp {
@@ -14,15 +22,19 @@ public:
 	GeckoCUDAProp(int total, int declared) : deviceCountTotal(total), deviceDeclared(declared) {}
 };
 
-class GeckoAddressInfo {
-public:
-	void    *p;
-	size_t   count;
-	size_t   startingIndex;
 
-	GeckoAddressInfo() : p(NULL), count(0), startingIndex(0) {}
-	GeckoAddressInfo(void *p, size_t count, size_t startingIndex) : p(p), count(count), startingIndex(startingIndex) {}
-};
+
+//class GeckoAddressInfo {
+//public:
+//	void    *p;
+//	size_t   count;
+//	size_t   startingIndex;
+//
+//	GeckoAddressInfo() : p(NULL), count(0), startingIndex(0) {}
+//	GeckoAddressInfo(void *p, size_t count, size_t startingIndex) : p(p), count(count), startingIndex(startingIndex) {}
+//};
+
+
 
 
 static GeckoCUDAProp geckoCUDA;
@@ -64,8 +76,9 @@ GeckoError geckoInit() {
 		geckoTreeHead = NULL;
 
 		#ifdef CUDA_ENABLED
-		GECKO_CUDA_CHECK(cudaGetDeviceCount(&geckoCUDA.deviceCountTotal));
-		if(geckoCUDA.deviceCountTotal != -1)
+//		GECKO_CUDA_CHECK(cudaGetDeviceCount(&geckoCUDA.deviceCountTotal));
+		geckoCUDA.deviceCountTotal = acc_get_num_devices(acc_device_nvidia);
+		if(geckoCUDA.deviceCountTotal != 0)
 			geckoCUDA.deviceDeclared = 0;
 		#ifdef INFO
 		fprintf(stderr, "===GECKO: CUDA Devices available(%d)\n", geckoCUDA.deviceCountTotal);
@@ -337,6 +350,8 @@ void __geckoDrawPerNode(FILE *f, GeckoLocation *p) {
         return;
 	char line[4096];
 	string parentName = p->getLocationName();
+	sprintf(&line[0], "\"%s\"  [shape=box];\n", parentName.c_str());
+	fwrite(&line[0], sizeof(char), strlen(&line[0]), f);
     const vector<GeckoLocation *> &children = p->getChildren();
     const int size = children.size();
     for(int i=0;i<size;i++) {
@@ -361,7 +376,6 @@ void geckoDrawHierarchyTree(char *rootNode, char *filename) {
 	sprintf(&line[0], "digraph Gecko {\n");
 	fwrite(&line[0], sizeof(char), strlen(&line[0]), f);
 	GeckoLocation *root = GeckoLocation::find(string(rootNode));
-	fprintf(stderr, "===GECKO: Root node: %s\n", root->getLocationName().c_str());
 	__geckoDrawPerNode(f, root);
 	sprintf(&line[0], "}\n");
 	fwrite(&line[0], sizeof(char), strlen(&line[0]), f);
@@ -382,7 +396,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 			break;
 #ifdef CUDA_ENABLED
 		case GECKO_CUDA:
-			CHAM_CUDA_CHECK(cudaMalloc(&addr, var->dataSize * var->count));
+			GECKO_CUDA_CHECK(cudaMalloc(&addr, var->dataSize * var->count));
 #ifdef INFO
 			fprintf(stderr, "===GECKO: CUDAMALLOC - location %s - size %d\n", var->loc.c_str(),
 			        var->dataSize * var->count);
@@ -392,7 +406,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 
 		case GECKO_UNIFIED_MEMORY:
 #ifdef CUDA_ENABLED
-			CHAM_CUDA_CHECK(cudaMallocManaged(&addr, var->dataSize * var->count));
+			GECKO_CUDA_CHECK(cudaMallocManaged(&addr, var->dataSize * var->count));
 #ifdef INFO
 			fprintf(stderr, "===GECKO: UVM ALLOCATION - location %s - size %d\n", var->loc.c_str(),
 			        var->dataSize * var->count);
@@ -526,8 +540,9 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 	}
 }
 
-GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary, int incremental_direction,
-					   int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex, GeckoLocation ***out_dev) {
+GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
+                       int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
+                       GeckoLocation ***out_dev, int ranges_count, int *ranges) {
 	geckoInit();
 
 #ifdef INFO
@@ -544,7 +559,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 
 	int totalIterations = boundary - initval;
 
-	printf("TotalIterations: %d\n", totalIterations);
+#ifdef INFO
+	fprintf(stderr, "===GECKO: TotalIterations: %d\n", totalIterations);
+#endif
 
 	if(totalIterations == 0)
 		return GECKO_ERR_SUCCESS;
@@ -553,9 +570,16 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
 	*devCount = children_names.size();
 
-	int *beginLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
-	int *endLoopIndex = (int*) malloc(sizeof(int) * (*devCount));
-	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * (*devCount));
+
+	int loop_index_count = *devCount;
+	if(strcmp(exec_pol, "range") == 0 || strcmp(exec_pol, "percentage") == 0)
+		loop_index_count = ranges_count;
+
+	int *beginLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
+	int *endLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
+	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * loop_index_count);
+
+	printf("================AFTER ALLOCATIONS\n");
 
 	if(strcmp(exec_pol, "static") == 0) {
 		int start = initval;
@@ -576,7 +600,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		start = initval;
 		for(int i=0;i<*devCount;i++) {
 			end = (incremental_direction ? start + delta : start - delta);
-			if(i == *devCount) 
+			if(i == *devCount-1)
 				end = boundary;
 #ifdef INFO
 			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
@@ -586,6 +610,46 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			beginLoopIndex[i] = start;
 			endLoopIndex[i] = end;
 			dev[i] = children_names[i].loc;
+			start = end;
+		}
+	} else if(strcmp(exec_pol, "any") == 0) {
+
+	} else if(strcmp(exec_pol, "range") == 0) {
+		int start, end, delta;
+		start = initval;
+		for(int j=0;j<ranges_count;j++) {
+			int i = j % *devCount;
+			delta = ranges[j];
+			end = (incremental_direction ? start + delta : start - delta);
+//			if(j == ranges_count-1)
+//				end = boundary;
+#ifdef INFO
+			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
+			       (end - start) * (incremental_direction ? 1 : -1)  );
+			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+#endif
+			beginLoopIndex[j] = start;
+			endLoopIndex[j] = end;
+			dev[j] = children_names[i].loc;
+			start = end;
+		}
+	} else if(strcmp(exec_pol, "percentage") == 0) {
+		int start, end, delta;
+		start = initval;
+		for(int j=0;j<ranges_count;j++) {
+			int i = j % *devCount;
+			delta = (int) floor(ranges[j] / 100.0 * totalIterations);
+			end = (incremental_direction ? start + delta : start - delta);
+//			if(j == ranges_count-1)
+//				end = boundary;
+#ifdef INFO
+			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
+			       (end - start) * (incremental_direction ? 1 : -1)  );
+			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+#endif
+			beginLoopIndex[j] = start;
+			endLoopIndex[j] = end;
+			dev[j] = children_names[i].loc;
 			start = end;
 		}
 	}
@@ -603,7 +667,11 @@ GeckoError geckoSetDevice(GeckoLocation *device) {
 #endif
 
 
-	acc_set_device_num(0, acc_device_host);
+	GeckoLocationArchTypeEnum loc_type = device->getLocationType().type;
+	if(loc_type == GECKO_CUDA)
+		acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
+	else if(loc_type == GECKO_X64 || loc_type == GECKO_X32)
+		acc_set_device_num(device->getLocationIndex(), acc_device_host);
 
 	return GECKO_ERR_SUCCESS;
 }

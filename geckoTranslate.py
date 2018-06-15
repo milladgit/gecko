@@ -22,6 +22,8 @@ class SourceFile(object):
 
 		self.var_list = ""
 		self.exec_pol = ""
+		self.exec_pol_type = ""
+		self.exec_pol_option = ""
 		self.at = ""
 
 
@@ -299,42 +301,51 @@ class SourceFile(object):
 			exit(1)
 
 
-		print "AT: %s - POLICY: %s - VARLIST: %s" % (at, exec_pol, varList)
-
 		self.var_list = varList
-
-		exec_pol_upper = exec_pol.upper()
-		# if exec_pol_upper.find("PERCENTAGE") == 0:
-
-		# if exec_pol not in ("STATIC", "FLATTEN", "ANY", "PERCENTAGE", "RANGE"):
-
-		# policy = "%s_EXEC_POL_UNKNOWN" % (pragma_prefix)
-		# if len(at) > 0:
-		# 	policy = "GECKO_EXEC_POL_AT"
-		# 	loc_list = at
-		# elif len(ateach) > 0:
-		# 	policy = "GECKO_EXEC_POL_ATEACH"
-		# 	loc_list = ateach
-		# elif len(atany) > 0:
-		# 	policy = "GECKO_EXEC_POL_ATANY"
-		# 	loc_list = atany
-
 
 		self.exec_pol = exec_pol
 		self.at = at
-		line = '{\n%sRegion(%s, %s, "%s", 0, NULL);\n' % (pragma_prefix_funcname, exec_pol, at, varList)
-		line = ""
+
+		if "range" in exec_pol:
+			pol = gREU.parseRangePolicy("range", exec_pol)
+			if pol is None:
+				pol = exec_pol.split(":")[1][:-1]
+				if "," not in pol:
+					print "Line: %d - 'Range' execution policy should include the ranges." % (lineNumber)
+					exit(1)
+				self.exec_pol_type = "runtime"
+			else:
+				self.exec_pol_type = "array"
+
+			self.exec_pol = '"range"'
+			self.exec_pol_option = pol
+
+		elif "percentage" in exec_pol:
+			pol = gREU.parseRangePolicy("percentage", exec_pol)
+			if pol is None:
+				pol = exec_pol.split(":")[1][:-1]
+				if "," not in pol:
+					print "Line: %d - 'Percentage' execution policy should include the percentages." % (lineNumber)
+					exit(1)
+				self.exec_pol_type = "runtime"
+			else:
+				self.exec_pol_type = "array"
+
+			self.exec_pol = '"percentage"'
+			self.exec_pol_option = pol
+
+
 
 		self.parsing_region_state = 1
 
-		return line
+		return ""
 
 
 	def parseRegionKernel(self, keywords, lineNumber):
 		if self.parsing_region_state == -1:
 			# we are dealing with the OpenACC pragma line after our directive
 
-			ret = "}\n#pragma acc wait\nprintf(\"hello from python script\\n\");\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
+			ret = "}\n#pragma acc wait\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
 
 			self.parsing_region_state = 0
 
@@ -376,12 +387,61 @@ class SourceFile(object):
 			if incremental_direction is None:
 				print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
 
+			range_line_begin = ""
+			range_line_end = ""
+			if self.exec_pol == '"range"':
+				if self.exec_pol_type == "array":
+					range_arr = self.exec_pol_option.split(',')
+					ranges_count = "%d" % (len(range_arr))
+					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+					range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+					for i, a in enumerate(range_arr):
+						range_line_begin += "ranges[%d] = %s;\n" % (i, a)
+					range_line_end = "free(ranges);\n"
+
+				elif self.exec_pol_type == "runtime":
+					arr = self.exec_pol_option.split(',')
+					ranges_count = arr[0]
+					range_name = arr[1]
+					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+					range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+
+			elif self.exec_pol == '"percentage"':
+				if self.exec_pol_type == "array":
+					range_arr = self.exec_pol_option.split(',')
+					ranges_count = "%d" % (len(range_arr))
+					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+					range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+					for i, a in enumerate(range_arr):
+						range_line_begin += "ranges[%d] = %s;\n" % (i, a)
+					range_line_end = "free(ranges);\n"
+
+				elif self.exec_pol_type == "runtime":
+					arr = self.exec_pol_option.split(',')
+					ranges_count = arr[0]
+					range_name = arr[1]
+					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+					range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+			else:
+				range_line_begin = "int ranges_count = 0;\n"
+				range_line_begin += "int *ranges = NULL;\n"
+
+
+
 			line = '{\n'
-			line += "int *beginLoopIndex, *endLoopIndex, devCount, devIndex;\n"
+			line += "int *beginLoopIndex, *endLoopIndex, jobCount, devCount, devIndex;\n"
 			line += "GeckoLocation **dev;\n"
-			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev);\n' % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
+			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
+			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges);\n' \
+					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
+			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
-			line += "for(devIndex=0;devIndex < devCount;devIndex++) {\n"
+			if self.exec_pol in ['"range"', '"percentage"']:
+				line += "jobCount = ranges_count;"
+			else:
+				line += "jobCount = devCount;"
+
+			line += "for(devIndex=0;devIndex < jobCount;devIndex++) {\n"
 			# line += "printf(\"begin: \%d  ---  end: \%d\\n\", beginLoopIndex[devIndex], endLoopIndex[devIndex]);\n"
 			line += "\t%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "%s  " % (self.pragmaForRegion)
