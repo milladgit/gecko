@@ -194,6 +194,7 @@ class SourceFile(object):
 		distribute = False
 		duplicate = False
 		tile = ""
+		varToFree = ""
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
@@ -203,13 +204,15 @@ class SourceFile(object):
 				_type = k[1][:-1]
 			elif k[0] == "location":
 				loc = k[1][:-1]
-			elif k[0] == "distribute":
-				distribute = True
-			elif k[0] == "duplicate":
-				duplicate = True
-			elif k[0] == "tile":
-				tile = k[1][:-1]
+			elif k[0] == "free":
+				varToFree = k[1][:-1]
+
 			i += 1
+
+
+		if varToFree != "":
+			line = "%sFree(%s);\n" % (pragma_prefix_funcname, varToFree)
+			return line
 
 		if duplicate and distribute and tile:
 			print "Line %d - Cannot choose <duplicate>, <distribute>, <tile> at the same time!" % (lineNumber)

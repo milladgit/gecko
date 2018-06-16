@@ -102,5 +102,9 @@ int main() {
 
 	printf("Hello World!\n");
 
+	#pragma gecko memory free(X)
+	#pragma gecko memory free(Y)
+	#pragma gecko memory free(Z)
+
 	return 0;
 }

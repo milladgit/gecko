@@ -407,11 +407,17 @@ void geckoDrawHierarchyTree(char *rootNode, char *filename) {
 
 void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 	void *addr = NULL;
+	size_t sz_in_byte = var->dataSize * var->count;
+	GeckoLocation *device = GeckoLocation::find(var->loc);
+	if(device == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", var->loc);
+		exit(1);
+	}
 
 	switch(type) {
 		case GECKO_X32:
 		case GECKO_X64:
-			addr = malloc(var->dataSize * var->count);
+			addr = malloc(sz_in_byte);
 #ifdef INFO
 		fprintf(stderr, "===GECKO: MALLOC - location %s - size %d\n", var->loc.c_str(),
 			        var->dataSize * var->count);
@@ -419,20 +425,19 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 			break;
 #ifdef CUDA_ENABLED
 		case GECKO_CUDA:
-			GECKO_CUDA_CHECK(cudaMalloc(&addr, var->dataSize * var->count));
+			acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
+			GECKO_CUDA_CHECK(cudaMalloc(&addr, sz_in_byte));
 #ifdef INFO
-			fprintf(stderr, "===GECKO: CUDAMALLOC - location %s - size %d\n", var->loc.c_str(),
-			        var->dataSize * var->count);
+			fprintf(stderr, "===GECKO: CUDAMALLOC - location %s - size %d\n", var->loc.c_str(), sz_in_byte);
 #endif //INFO
 			break;
 #endif
 
 		case GECKO_UNIFIED_MEMORY:
 #ifdef CUDA_ENABLED
-			GECKO_CUDA_CHECK(cudaMallocManaged(&addr, var->dataSize * var->count));
+			GECKO_CUDA_CHECK(cudaMallocManaged(&addr, sz_in_byte));
 #ifdef INFO
-			fprintf(stderr, "===GECKO: UVM ALLOCATION - location %s - size %d\n", var->loc.c_str(),
-			        var->dataSize * var->count);
+			fprintf(stderr, "===GECKO: UVM ALLOCATION - location %s - size %d\n", var->loc.c_str(), sz_in_byte);
 #endif  // INFO
 #else   // CUDA_ENABLED
 			fprintf(stderr, "===GECKO: CUDA APIs are required for unified memory allocation.\n");
@@ -447,8 +452,6 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 			exit(1);
 	}
 
-
-//	geckoAddressTable[addr] = GeckoAddressInfo(addr, var->count, 0);
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: ALLOCATION variable %p - location %s - addr %p\n", addr, var->loc.c_str(), addr);
@@ -785,5 +788,52 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 #pragma acc wait(async_id)
 		geckoUnsetBusy(loc);
 	}
+
+	return GECKO_ERR_SUCCESS;
 }
 
+void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *loc) {
+
+	switch(type) {
+		case GECKO_X32:
+		case GECKO_X64:
+			free(addr);
+#ifdef INFO
+		fprintf(stderr, "===GECKO: FREE - location %s \n", loc->getLocationName().c_str());
+#endif
+			break;
+#ifdef CUDA_ENABLED
+		case GECKO_CUDA:
+			acc_set_device_num(loc->getLocationIndex(), acc_device_nvidia);
+		case GECKO_UNIFIED_MEMORY:
+			GECKO_CUDA_CHECK(cudaFree(addr));
+#ifdef INFO
+			fprintf(stderr, "===GECKO: CUDAFREE - location %s\n", loc->getLocationName().c_str());
+#endif
+			break;
+#endif
+
+		default:
+			fprintf(stderr, "=== GECKO: Unrecognized architecture to free memory - Arch: %s\n",
+					geckoGetLocationTypeName(type));
+			exit(1);
+	}
+}
+
+
+GeckoError geckoFree(void *ptr) {
+	auto iter = geckoMemoryTable.find(ptr);
+	if(iter == geckoMemoryTable.end())
+		return GECKO_ERR_FAILED;
+
+	string &loc = iter->second.loc;
+	GeckoLocation *g_loc = GeckoLocation::find(loc);
+	if(g_loc == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc);
+		exit(1);
+	}
+	geckoFreeMemory(g_loc->getLocationType().type, ptr, g_loc);
+	geckoMemoryTable.erase(iter);
+
+	return GECKO_ERR_SUCCESS;
+}

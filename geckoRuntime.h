@@ -55,6 +55,8 @@ void 	   geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCoun
 
 GeckoError geckoWaitOnLocation(char *locationName);
 
+GeckoError geckoFree(void *ptr);
+
 void geckoDrawHierarchyTree(char *rootNode, char *filename);
 
 #endif
