@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <unordered_set>
 using namespace std;
@@ -567,9 +568,9 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 }
 
 void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
+	const int count = locList.size();
 	while(1) {
 		omp_set_lock(&lock_freeResources);
-		const int count = locList.size();
 		int i;
 		for(i=0;i<count;i++) {
 			if(freeResources.find(locList[i].loc) == freeResources.end()) {     // found a busy resource
@@ -590,6 +591,37 @@ void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
 		break;
 	}
 }
+
+void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
+	int *indexes = (int *) malloc(sizeof(int) * locList.size());
+	while(1) {
+		omp_set_lock(&lock_freeResources);
+		int count = 0;
+		int i;
+		for(i=0;i<count;i++) {
+			if(freeResources.find(locList[i].loc) != freeResources.end()) {     // found a free resource
+				indexes[count++] = i;
+			}
+		}
+		if(count == 0) {
+			omp_unset_lock(&lock_freeResources);
+			usleep(GECKO_ACQUIRE_SLEEP_DURATION_NS);
+			continue;
+		}
+		i = rand() % count;
+		int index = indexes[i];
+		GeckoLocation *device = locList[index].loc;
+		const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
+		freeResources.erase(iter);
+		__geckoLocationIterationType gliter = locList[index];
+		locList.clear();
+		locList.push_back(gliter);
+		omp_unset_lock(&lock_freeResources);
+		break;
+	}
+	free(indexes);
+}
+
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
@@ -668,6 +700,11 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "any") == 0) {
+		geckoAcquireLocationForAny(children_names);
+		*devCount = 1;
+		beginLoopIndex[0] = initval;
+		endLoopIndex[0] = boundary;
+		dev[0] = children_names[0].loc;
 
 	} else if(strcmp(exec_pol, "range") == 0) {
 		geckoAcquireLocations(children_names);
