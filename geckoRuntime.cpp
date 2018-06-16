@@ -835,8 +835,8 @@ GeckoError geckoMemoryFreeAlgorithm(GeckoLocationArchTypeEnum type, void *addr, 
 		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA)
 			geckoFreeMemory(type, addr, node);
 		else {
-			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
-					__FILE__, __LINE__, var.loc.c_str());
+			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for freeing memory. Location: %s\n",
+					__FILE__, __LINE__, node->getLocationName().c_str());
 		}
 	} else {
 		bool areAllCPUs = geckoAreAllChildrenCPU(node);
