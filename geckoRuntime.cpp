@@ -85,6 +85,9 @@ GeckoError geckoInit() {
 	if(!geckoStarted) {
 		geckoStarted = 1;
 
+		// for 'any' execution policy
+		srand (time(NULL));
+
 		geckoTreeHead = NULL;
 
 		#ifdef CUDA_ENABLED
@@ -593,12 +596,13 @@ void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
 }
 
 void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
-	int *indexes = (int *) malloc(sizeof(int) * locList.size());
+	const int locListSize = locList.size();
+	int *indexes = (int *) malloc(sizeof(int) * locListSize);
 	while(1) {
 		omp_set_lock(&lock_freeResources);
 		int count = 0;
 		int i;
-		for(i=0;i<count;i++) {
+		for(i=0;i<locListSize;i++) {
 			if(freeResources.find(locList[i].loc) != freeResources.end()) {     // found a free resource
 				indexes[count++] = i;
 			}
@@ -609,6 +613,7 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 			continue;
 		}
 		i = rand() % count;
+		printf("-------------COUNT: %d - chosen: %d\n", count, i);
 		int index = indexes[i];
 		GeckoLocation *device = locList[index].loc;
 		const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
@@ -705,6 +710,10 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		beginLoopIndex[0] = initval;
 		endLoopIndex[0] = boundary;
 		dev[0] = children_names[0].loc;
+
+#ifdef INFO
+		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[0]->getLocationName().c_str());
+#endif
 
 	} else if(strcmp(exec_pol, "range") == 0) {
 		geckoAcquireLocations(children_names);

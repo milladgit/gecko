@@ -11,14 +11,14 @@ int main() {
 
 	#pragma gecko location name("LocA") type("NODE_MEMORY")
 	#pragma gecko location name("LocN","LocG") type("virtual")
-	#pragma gecko location name("LocN1", "LocN2") type("host")
-	// #pragma gecko location name("LocN1") type("host")
+//	#pragma gecko location name("LocN1", "LocN2") type("host")
+	#pragma gecko location name("LocN1") type("host")
 	#pragma gecko location name("LocG1") type("tesla")
 
 	char op = '+';
 	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
-	#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
-	// #pragma gecko hierarchy children(op:"LocN1") parent("LocN")
+	//#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
+	#pragma gecko hierarchy children(op:"LocN1") parent("LocN")
 	#pragma gecko hierarchy children(+:"LocG1") parent("LocG")
 
 
@@ -78,7 +78,7 @@ int main() {
 	b = N;
 	double coeff = 3.4;
 	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
-	#pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
+	#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 	#pragma acc parallel loop 
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff;
