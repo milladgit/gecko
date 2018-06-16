@@ -11,7 +11,7 @@ GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
 
 CUDA_HOME = /usr/local/cuda-9.0
 
-ENABLE_CUDA = OFF
+ENABLE_CUDA = ON
 ENABLE_DEBUG = ON
 
 LDFLAGS=-lm
@@ -28,8 +28,8 @@ LDFLAGS=-lm
 
 
 CXX=pgc++
-CXXFLAGS=-w
-LDFLAGS=-lm
+CXXFLAGS=-w -mp
+LDFLAGS=-lm -mp
 OUTPUT_EXE=output_test
 CXXFLAGS += -acc -ta=tesla,multicore
 
@@ -72,8 +72,8 @@ endif
 
 
 
-# all: doTransformation $(BINS)
-all: $(BINS)
+all: doTransformation $(BINS)
+# all: $(BINS)
 
 
 $(BIN_DIR):

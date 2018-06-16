@@ -26,6 +26,7 @@
 
 #include <cstdlib>
 #include <unordered_map>
+#include <omp.h>
 
 #include "geckoDataTypes.h"
 #include "geckoHierarchicalTree.h"
@@ -48,8 +49,11 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
                        GeckoLocation ***out_dev, int ranges_count, int *ranges);
 GeckoError geckoSetDevice(GeckoLocation *device);
+GeckoError geckoSetBusy(GeckoLocation *device);
+GeckoError geckoUnsetBusy(GeckoLocation *device);
 void 	   geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev);
 
+GeckoError geckoWaitOnLocation(char *locationName);
 
 void geckoDrawHierarchyTree(char *rootNode, char *filename);
 

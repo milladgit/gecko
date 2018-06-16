@@ -276,6 +276,7 @@ class SourceFile(object):
 		exec_pol_int = ""
 		varList = ""
 		end = False
+		wait = False
 
 		i = 3
 		while i < len(keywords):
@@ -290,11 +291,18 @@ class SourceFile(object):
 				varList = k[1][:-1]
 			elif k[0] == "end":
 				end = True
+			elif k[0] == "pause":
+				wait = True
 			i += 1
 
 		if end:
 			self.parsing_region_state = -1
 			return self.parseRegionKernel(keywords, lineNumber)
+		elif wait:
+			if at == "":
+				at = '""'
+			line = "%sWaitOnLocation(%s);\n" % (pragma_prefix_funcname, at)
+			return line
 
 		if len(exec_pol) > 0 and len(exec_pol_int) > 0:
 			print "Line: %d - Cannot have 'exec_pol' and 'exec_pol_int' at the same time." % (lineNumber)
@@ -345,7 +353,9 @@ class SourceFile(object):
 		if self.parsing_region_state == -1:
 			# we are dealing with the OpenACC pragma line after our directive
 
-			ret = "}\n#pragma acc wait\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
+			ret = ""
+			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
+			ret += "}\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
 
 			self.parsing_region_state = 0
 
@@ -441,12 +451,12 @@ class SourceFile(object):
 			else:
 				line += "jobCount = devCount;"
 
-			line += "for(devIndex=0;devIndex < jobCount;devIndex++) {\n"
-			# line += "printf(\"begin: \%d  ---  end: \%d\\n\", beginLoopIndex[devIndex], endLoopIndex[devIndex]);\n"
-			line += "\t%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
+			line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
+			line += "{\n"
+			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "%s  " % (self.pragmaForRegion)
 			line += "  deviceptr(%s) " % (self.var_list)
-			line += " async(devIndex) "
+			line += " async(dev[devIndex]->getAsyncID()) "
 			line += " \n"
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
 			if paranthesis is None:

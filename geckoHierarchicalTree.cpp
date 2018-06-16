@@ -4,11 +4,12 @@
 
 unordered_map<string, GeckoLocation*> GeckoLocation::geckoListOfAllNodes;
 
-GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj, int locIndex) {
+GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj, int locIndex, int async_id) {
 	this->locationName = locationName;
 	this->locationObj = locationObj;
 	this->parent = parent;
 	this->locationIndex = locIndex;
+	this->async_id = async_id;
 
 	geckoListOfAllNodes[locationName] = this;
 }
@@ -67,7 +68,7 @@ int GeckoLocation::getLocationIndex() {
 	return locationIndex;
 }
 
-GeckoLocation *GeckoLocation::getRoot() {
+GeckoLocation *GeckoLocation::findRoot() {
 	if(geckoListOfAllNodes.size() == 0)
 		return NULL;
 	unordered_map<string, GeckoLocation*>::iterator iter = geckoListOfAllNodes.begin();
@@ -78,4 +79,12 @@ GeckoLocation *GeckoLocation::getRoot() {
 		node = node->getParent();
 	}
 	return prev;
+}
+
+int GeckoLocation::getAsyncID() {
+	return async_id;
+}
+
+void GeckoLocation::setAsyncID(int id) {
+	async_id = id;
 }

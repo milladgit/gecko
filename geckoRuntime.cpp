@@ -2,6 +2,10 @@
 #include "geckoRuntime.h"
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
+
+#include <unordered_set>
+using namespace std;
 
 #include <openacc.h>
 
@@ -11,6 +15,11 @@
 #endif
 
 #include "geckoUtils.h"
+
+
+
+#define GECKO_ACQUIRE_SLEEP_DURATION_NS 100      // in nanoseconds
+#define GECKO_LOCATION_INDEX_OFFSET 10
 
 
 class GeckoCUDAProp {
@@ -41,6 +50,8 @@ static GeckoCUDAProp geckoCUDA;
 static unordered_map<string, GeckoLocationType> listOfAvailLocationTypes;
 static unordered_map<void*, GeckoMemory> geckoMemoryTable;
 //static unordered_map<void*, GeckoAddressInfo> geckoAddressTable;
+static unordered_set<GeckoLocation*> freeResources;
+static omp_lock_t lock_freeResources;
 
 
 static inline 
@@ -94,6 +105,9 @@ GeckoError geckoInit() {
 		listOfAvailLocationTypes[string("virtual")] = d;
 
 
+		omp_init_lock(&lock_freeResources);
+
+
 		atexit(geckoCleanup);
 
 		#ifdef INFO
@@ -110,6 +124,9 @@ void geckoCleanup() {
 	// chamListAllVariables();
 	// chamListAllMemoryAllocations();
 	// #endif
+
+	omp_destroy_lock(&lock_freeResources);
+
 
 	#ifdef INFO
 	fprintf(stderr, "===GECKO: Stopped...\n");
@@ -228,13 +245,19 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 			index = geckoX64DeviceIndex++;
 		}
 		#ifdef CUDA_ENABLED
-		if(locObj.type == GECKO_CUDA) {
+		else if(locObj.type == GECKO_CUDA) {
 			index = geckoCUDADeviceIndex++;
 		}
 		#endif
 
 
-		new GeckoLocation(string(&name[0]), NULL, locObj, index);
+		static int locationIndex = 0;
+		// adding the newly created location to the map
+		// that is persisted by GeckoLocation.
+		GeckoLocation *loc = new GeckoLocation(string(&name[0]), NULL, locObj, index, GECKO_LOCATION_INDEX_OFFSET+locationIndex);
+		freeResources.insert(loc);
+		locationIndex++;
+
 		#ifdef INFO
 		fprintf(stderr, "===GECKO: Declaring location %s\n", &name[0]);
 		#endif		
@@ -540,6 +563,31 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 	}
 }
 
+void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
+	while(1) {
+		omp_set_lock(&lock_freeResources);
+		const int count = locList.size();
+		int i;
+		for(i=0;i<count;i++) {
+			if(freeResources.find(locList[i].loc) == freeResources.end()) {     // found a busy resource
+				break;
+			}
+		}
+		if(i < count) {
+			omp_unset_lock(&lock_freeResources);
+			usleep(GECKO_ACQUIRE_SLEEP_DURATION_NS);
+			continue;
+		}
+		for(int i=0;i<count;i++) {
+			GeckoLocation *device = locList[i].loc;
+			const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
+			freeResources.erase(iter);
+		}
+		omp_unset_lock(&lock_freeResources);
+		break;
+	}
+}
+
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
                        GeckoLocation ***out_dev, int ranges_count, int *ranges) {
@@ -579,9 +627,11 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	int *endLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * loop_index_count);
 
-	printf("================AFTER ALLOCATIONS\n");
+
 
 	if(strcmp(exec_pol, "static") == 0) {
+		geckoAcquireLocations(children_names);
+
 		int start = initval;
 		for(int i=0;i<*devCount;i++) {
 			int end = (incremental_direction ? start + children_names[i].iterationCount : start - children_names[i].iterationCount);
@@ -596,6 +646,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "flatten") == 0) {
+		geckoAcquireLocations(children_names);
+
 		int start, end, delta = totalIterations / (*devCount);
 		start = initval;
 		for(int i=0;i<*devCount;i++) {
@@ -615,6 +667,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	} else if(strcmp(exec_pol, "any") == 0) {
 
 	} else if(strcmp(exec_pol, "range") == 0) {
+		geckoAcquireLocations(children_names);
+
 		int start, end, delta;
 		start = initval;
 		for(int j=0;j<ranges_count;j++) {
@@ -634,6 +688,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "percentage") == 0) {
+		geckoAcquireLocations(children_names);
+
 		int start, end, delta;
 		start = initval;
 		for(int j=0;j<ranges_count;j++) {
@@ -653,6 +709,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			start = end;
 		}
 	}
+
+
 
 	*out_dev = dev;
 	*out_beginLoopIndex = beginLoopIndex;
@@ -676,6 +734,26 @@ GeckoError geckoSetDevice(GeckoLocation *device) {
 	return GECKO_ERR_SUCCESS;
 }
 
+
+GeckoError geckoSetBusy(GeckoLocation *device) {
+	omp_set_lock(&lock_freeResources);
+	const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
+	if(iter == freeResources.end()) {
+		omp_unset_lock(&lock_freeResources);
+		return GECKO_ERR_FAILED;
+	}
+	freeResources.erase(iter);
+	omp_unset_lock(&lock_freeResources);
+	return GECKO_ERR_SUCCESS;
+}
+
+GeckoError geckoUnsetBusy(GeckoLocation *device) {
+	omp_set_lock(&lock_freeResources);
+	freeResources.insert(device);
+	omp_unset_lock(&lock_freeResources);
+	return GECKO_ERR_SUCCESS;
+}
+
 void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev) {
 	free(beginLoopIndex);
 	free(endLoopIndex);
@@ -683,51 +761,29 @@ void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, G
 	free(dev);
 }
 
-//GeckoError geckoRegion(chameleonExecutionPolicy_t policy, char *loc_list, int count, void ***varlist) {
-//	geckoInit();
-//
-//	for(int i=0;i<count;i++) {
-//		void **v = varlist[i];
-//		printf("===%d : %p\n", i, v);
-//	}
-//
-//	string locList(loc_list);
-//
-//	if(policy == CHAMELEON_EXEC_POL_AT) {
-//		lastParallelNode = ChameleonNode::find(locList);
-//		if(lastParallelNode == NULL) {
-//			fprintf(stderr, "===CHAMELEON: Device ('%s') does not exist!\n", loc_list);
-//			exit(1);
-//		}
-////		switch(lastParallelNode->getLocationType().type) {
-////#ifdef CUDA_ENABLED
-////			case CHAMELEON_CUDA:
-//////				acc_set_device_type(acc_device_nvidia);
-////				acc_set_device_num(lastParallelNode->getLocationIndex(), acc_device_nvidia);
-////#ifdef DEBUG
-////				fprintf(stderr, "===CHAMELEON: Setting device to NVIDIA (%d)\n", lastParallelNode->getLocationIndex());
-////#endif
-////				break;
-////#endif
-////			case CHAMELEON_X32:
-////			case CHAMELEON_X64:
-////				acc_set_device_num(lastParallelNode->getLocationIndex(), acc_device_host);
-////#ifdef DEBUG
-////				fprintf(stderr, "===CHAMELEON: Setting device to HOST (%d)\n", lastParallelNode->getLocationIndex());
-////#endif
-////				break;
-////		}
-//		chamSetDevice(lastParallelNode->getLocationType().type, lastParallelNode->getLocationIndex());
-//	} else if(policy == CHAMELEON_EXEC_POL_ATANY) {
-//		fprintf(stderr, "===CHAMELEON: atany execution policy is not defined yet.\n");
-//		exit(1);
-//	} else if(policy == CHAMELEON_EXEC_POL_ATEACH) {
-//		fprintf(stderr, "===CHAMELEON: ateach execution policy is not defined yet.\n");
-//		exit(1);
-//	} else if(policy == CHAMELEON_EXEC_POL_UNKNOWN) {
-//		fprintf(stderr, "===CHAMELEON: unknown execution policy is not defined yet.\n");
-//		exit(1);
-//	}
-//
-//	return CHAMELEON_ERR_SUCCESS;
-//}
+GeckoError geckoWaitOnLocation(char *loc_at) {
+	if(strlen(loc_at) == 0)
+		return GECKO_ERR_SUCCESS;
+
+	GeckoLocation *location = GeckoLocation::find(string(loc_at));
+	if(location == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc_at);
+		exit(1);
+	}
+
+	vector<__geckoLocationIterationType> children_names;
+	geckoExtractChildrenFromLocation(location, children_names, 0);
+	int devCount = children_names.size();
+
+#pragma omp parallel num_threads(devCount)
+//	for(int devIndex=0;devIndex<devCount;devIndex++)
+	{
+		int devIndex = omp_get_thread_num();
+		GeckoLocation *loc = children_names[devIndex].loc;
+		geckoSetDevice(loc);
+		int async_id = loc->getAsyncID();
+#pragma acc wait(async_id)
+		geckoUnsetBusy(loc);
+	}
+}
+

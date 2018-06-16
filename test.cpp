@@ -12,11 +12,13 @@ int main() {
 	#pragma gecko location name("LocA") type("NODE_MEMORY")
 	#pragma gecko location name("LocN","LocG") type("virtual")
 	#pragma gecko location name("LocN1", "LocN2") type("host")
+	// #pragma gecko location name("LocN1") type("host")
 	#pragma gecko location name("LocG1") type("tesla")
 
 	char op = '+';
 	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
 	#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
+	// #pragma gecko hierarchy children(op:"LocN1") parent("LocN")
 	#pragma gecko hierarchy children(+:"LocG1") parent("LocG")
 
 
@@ -74,19 +76,24 @@ int main() {
 
 	a = 0;
 	b = N;
+	double coeff = 3.4;
 	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
-	#pragma gecko region at("LocN") exec_pol("range:[100, 100]") variable_list(Z)
+	#pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
 	#pragma acc parallel loop 
 	for (int i = a; i<b; i++) {
-		Z[i] = 2.0;
+		Z[i] = coeff;
 	}
 	#pragma gecko region end
+
+	#pragma gecko region pause at("LocA") 
+
+	// #pragma acc wait
 
 
 
 	printf("Checking...\n");
-	for(int i=0;i<200;i++) {
-		if(Z[i] != 2.0) {
+	for(int i=0;i<N;i++) {
+		if(Z[i] != (coeff)) {
 			printf("Error in index: %d\n", i);
 		}
 	}

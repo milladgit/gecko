@@ -21,11 +21,13 @@ class GeckoLocation {
 	GeckoLocationType 	locationObj;
 	int				locationIndex;
 
+	int             async_id;
+
 	vector<GeckoLocation*> children;
 	GeckoLocation *parent;
 
 public:
-	GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj, int locIndex);
+	GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj, int locIndex, int async_id);
 	~GeckoLocation();
 
 	static GeckoLocation *find(string name);
@@ -39,8 +41,10 @@ public:
 	void setParent(GeckoLocation *p);
 	vector<GeckoLocation*> getChildren();
 	int getLocationIndex();
+	int getAsyncID();
+	void setAsyncID(int id);
 
-	static GeckoLocation *getRoot();
+	static GeckoLocation *findRoot();
 
 };
 
