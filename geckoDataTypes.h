@@ -70,9 +70,6 @@ public:
 	size_t count;
 	string loc;
 	GeckoMemoryDistribPolicy distributionType;
-//	bool duplicate;
-//	bool distribute;
-//	bool tile;
 
 	bool allocated;
 
@@ -83,9 +80,6 @@ public:
 			dataSize(0),
 			count(0),
 			distributionType(GECKO_DISTRIB_NONE),
-//			duplicate(false),
-//			distribute(false),
-//			tile(false),
 			allocated(false)
 	{};
 };

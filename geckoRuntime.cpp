@@ -792,6 +792,7 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 	return GECKO_ERR_SUCCESS;
 }
 
+inline
 void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *loc) {
 
 	switch(type) {
@@ -820,6 +821,34 @@ void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *
 	}
 }
 
+inline
+GeckoError geckoMemoryFreeAlgorithm(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *node) {
+	geckoInit();
+
+/*
+ * Following the memory allocation in the paper.
+ */
+
+	if(node->getChildren().size() == 0) {
+//		This node is a leaf node!
+		GeckoLocationArchTypeEnum type = node->getLocationType().type;
+		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA)
+			geckoFreeMemory(type, addr, node);
+		else {
+			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
+					__FILE__, __LINE__, var.loc.c_str());
+		}
+	} else {
+		bool areAllCPUs = geckoAreAllChildrenCPU(node);
+		if(areAllCPUs) {
+			geckoFreeMemory(GECKO_X64, addr, node);
+		} else {
+			geckoFreeMemory(GECKO_UNIFIED_MEMORY, addr, node);
+		}
+	}
+
+	return GECKO_ERR_SUCCESS;
+}
 
 GeckoError geckoFree(void *ptr) {
 	auto iter = geckoMemoryTable.find(ptr);
@@ -832,7 +861,7 @@ GeckoError geckoFree(void *ptr) {
 		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc);
 		exit(1);
 	}
-	geckoFreeMemory(g_loc->getLocationType().type, ptr, g_loc);
+	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
 	geckoMemoryTable.erase(iter);
 
 	return GECKO_ERR_SUCCESS;
