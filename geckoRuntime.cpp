@@ -613,7 +613,6 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 			continue;
 		}
 		i = rand() % count;
-		printf("-------------COUNT: %d - chosen: %d\n", count, i);
 		int index = indexes[i];
 		GeckoLocation *device = locList[index].loc;
 		const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
