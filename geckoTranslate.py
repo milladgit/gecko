@@ -454,14 +454,14 @@ class SourceFile(object):
 			else:
 				line += "jobCount = devCount;"
 
-			line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
+			# line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
+			line += "#pragma omp parallel num_threads(jobCount)\n"
 			line += "{\n"
+			line += "int devIndex = omp_get_thread_num();\n"
 			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
-			line += "%s  " % (self.pragmaForRegion)
-			line += "  deviceptr(%s) " % (self.var_list)
-			line += " async(dev[devIndex]->getAsyncID()) "
-			line += " \n"
+			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
+
 			if paranthesis is None:
 				line += "\n"
 			else:
