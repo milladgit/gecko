@@ -501,7 +501,7 @@ class SourceFile(object):
 
 	def processConfig(self, keywords, lineNumber):
 		root = ""
-		filename = '"gecko.config"'
+		filename = '"gecko.conf"'
 
 		i = 3
 		while i < len(keywords):

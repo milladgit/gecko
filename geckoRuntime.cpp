@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include <unordered_set>
+#include <algorithm>
 using namespace std;
 
 #include <openacc.h>
@@ -171,6 +172,10 @@ void __geckoConfigFileLoadFile(char *filename, vector< vector<string> > &lines) 
 	char line[1024];
 	char *delim = ";\n";
 	FILE *f = fopen(filename, "r");
+	if(f == NULL) {
+		fprintf(stderr, "===GECKO: Unable to load config file (%s).\n", filename);
+		exit(1);
+	}
 	while (fgets(line, 1024, f)) {
 		vector<string> fields;
 		__geckoGetFields(line, fields, delim);
@@ -197,14 +202,16 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 			mem_size = values[1];
 	}
 
-	if(name.compare("") == 0 || kind.compare("") == 0 || num_cores.compare("") == 0 || mem.compare("") == 0) {
+	trim(kind);
+	toUpper(kind);
+	trim(num_cores);
+
+	if(name.compare("") == 0 || kind.compare("") == 0) {
 		fprintf(stderr, "===GECKO: Error in declaring location type within the config file: name(%s) - "
-				  "kind(%s) - num_cores(%s) - mem(%s)\n", name.c_str(), kind.c_str(), num_cores.c_str(), mem.c_str());
+				  "kind(%s) - num_cores(%s) - mem(%s)\n", name.c_str(), kind.c_str(), num_cores.c_str(), mem_size.c_str());
 		exit(1);
 	}
 
-	trim(kind);
-	toUpper(kind);
 	GeckoLocationArchTypeEnum deviceType;
 	if(kind.compare("X32") == 0)
 		deviceType = GECKO_X32;
@@ -217,7 +224,11 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 	else
 		deviceType = GECKO_UNKOWN;
 
-	geckoLocationtypeDeclare((char*)name.c_str(), deviceType, "", stoi(num_cores, NULL, 10), mem_size.c_str(), "");
+	int num_cores_int = 0;
+	if(num_cores.compare("") != 0)
+		num_cores_int = stoi(num_cores, NULL, 10);
+
+	geckoLocationtypeDeclare((char*)name.c_str(), deviceType, "", num_cores_int, mem_size.c_str(), "");
 
 }
 
@@ -226,7 +237,7 @@ void __geckoLoadConfFileLocDeclare(vector<string> &fields) {
 
 	string type;
 	vector<string> names;
-	int all=0, start, count;
+	int all=0, start=0, count=1;
 	for(int j=1;j<fields.size();j++) {
 		vector<string> values;
 		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
@@ -260,12 +271,12 @@ void __geckoLoadConfFileHierDeclare(vector<string> &fields) {
 
 	string op, parent;
 	vector<string> children;
-	int all=0, start, count;
+	int all=0, start=0, count=1;
 	for(int j=1;j<fields.size();j++) {
 		vector<string> values;
 		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
 		if(values[0].compare("children") == 0) {
-			op = children[1];
+			op = values[1];
 			for(int k=2;k<values.size();k++)
 				children.push_back(values[k]);
 		} else if(values[0].compare("parent") == 0)
@@ -280,7 +291,7 @@ void __geckoLoadConfFileHierDeclare(vector<string> &fields) {
 
 	if(children.size() == 0 || parent.compare("") == 0 || (op.compare("+") == 0 && op.compare("-") == 0)) {
 		for(int k=0;k<children.size();k++)
-			fprintf(stderr, "===GECKO: Error in declaring location(s) within the config file: children(%s) - "
+			fprintf(stderr, "===GECKO: Error in declaring hierarchy from  config file: children(%s) - "
 							"op(%s) - parent(%s)\n", children[k].c_str(), op.c_str(), parent.c_str());
 		exit(1);
 	}

@@ -77,8 +77,8 @@ int main() {
 	a = 0;
 	b = N;
 	double coeff = 3.4;
-	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
-	#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
+	#pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
+	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 	#pragma acc parallel loop 
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff;
