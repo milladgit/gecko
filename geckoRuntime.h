@@ -37,6 +37,7 @@ using namespace std;
 GeckoError	geckoInit();
 void 		geckoCleanup();
 
+GeckoError  geckoLoadConfigWithFile(char *filename);
 
 GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
                                     int numCores, const char *mem_size, const char *mem_type);

@@ -4,22 +4,24 @@
 
 int main() {
 
-	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
-	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
-	#pragma gecko loctype name("NODE_MEMORY") kind("Unified_Memory") size("16GB")
+	#pragma gecko config file
+ 
+// 	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
+// 	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
+// 	#pragma gecko loctype name("NODE_MEMORY") kind("Unified_Memory") size("16GB")
 
 
-	#pragma gecko location name("LocA") type("NODE_MEMORY")
-	#pragma gecko location name("LocN","LocG") type("virtual")
-//	#pragma gecko location name("LocN1", "LocN2") type("host")
-	#pragma gecko location name("LocN1") type("host")
-	#pragma gecko location name("LocG1") type("tesla")
+// 	#pragma gecko location name("LocA") type("NODE_MEMORY")
+// 	#pragma gecko location name("LocN","LocG") type("virtual")
+// //	#pragma gecko location name("LocN1", "LocN2") type("host")
+// 	#pragma gecko location name("LocN1") type("host")
+// 	#pragma gecko location name("LocG1") type("tesla")
 
-	char op = '+';
-	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
-	//#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
-	#pragma gecko hierarchy children(op:"LocN1") parent("LocN")
-	#pragma gecko hierarchy children(+:"LocG1") parent("LocG")
+// 	char op = '+';
+// 	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
+// 	//#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
+// 	#pragma gecko hierarchy children(op:"LocN1") parent("LocN")
+// 	#pragma gecko hierarchy children(+:"LocG1") parent("LocG")
 
 
 	#pragma gecko draw root("LocA")

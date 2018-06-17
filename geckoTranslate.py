@@ -499,6 +499,24 @@ class SourceFile(object):
 
 
 
+	def processConfig(self, keywords, lineNumber):
+		root = ""
+		filename = '"gecko.config"'
+
+		i = 3
+		while i < len(keywords):
+			k = keywords[i].split("(")
+			if len(k) > 1 and k[0] == "file":
+				filename = k[1][:-1]
+
+			i += 1
+
+
+		line = "%sLoadConfigWithFile(%s);" % (pragma_prefix_funcname, filename)
+
+		return line
+
+
 	def __process_location_range(self, combo):
 		#      location, 	variable_name, 		start, 		count
 		ret = ["", 			"", 				"", 		""]
@@ -554,6 +572,8 @@ class SourceFile(object):
 			return self.processRegion(keywords, lineNumber)
 		elif keywords[2] == "draw":
 			return self.processDraw(keywords, lineNumber)
+		elif keywords[2] == "config":
+			return self.processConfig(keywords, lineNumber)
 		elif keywords[2][0:3] == "put":
 			return self.processPut(keywords, lineNumber)
 		else:
@@ -668,7 +688,8 @@ listOfFiles = glob.glob("*.h")
 listOfFiles += glob.glob("*.cpp")
 listOfFiles += glob.glob("*.cu")
 
-listOfFiles = ["test.cpp"]
+# listOfFiles = ["test.cpp"]
+listOfFiles = ["test.cpp", "test_with_config.cpp"]
 # listOfFiles = ["stencil.cpp", "dot_product.cpp", "matrix_mul.cpp"]
 print listOfFiles
 

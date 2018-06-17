@@ -137,6 +137,178 @@ void geckoCleanup() {
 	#endif
 }
 
+inline
+string &trim(string &str) {
+	str.erase(0, str.find_first_not_of(" \t\n"));       //prefixing spaces
+	str.erase(str.find_last_not_of(" \t\n")+1);         //surfixing spaces
+	return str;
+}
+inline
+string &toUpper(string &str) {
+	std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+	return str;
+}
+
+
+inline
+void __geckoGetFields(char *line, vector<string> &v, char *delim) {
+	char* tmp = strdup(line);
+	const char* tok;
+	for (tok = strtok(line, delim);
+		 tok && *tok;
+		 tok = strtok(NULL, delim)) {
+		string string_tok = string(tok);
+		trim(string_tok);
+		if(string_tok.size() == 0 || string_tok.compare(string("")) == 0)
+			continue;
+		v.push_back(string_tok);
+	}
+	free(tmp);
+}
+
+inline
+void __geckoConfigFileLoadFile(char *filename, vector< vector<string> > &lines) {
+	char line[1024];
+	char *delim = ";\n";
+	FILE *f = fopen(filename, "r");
+	while (fgets(line, 1024, f)) {
+		vector<string> fields;
+		__geckoGetFields(line, fields, delim);
+		if(fields.size() == 0)
+			continue;
+		lines.push_back(fields);
+	}
+	fclose(f);
+}
+
+inline
+void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
+	string name, kind, num_cores, mem_size;
+	for(int j=1;j<fields.size();j++) {
+		vector<string> values;
+		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
+		if(values[0].compare("name") == 0)
+			name = values[1];
+		else if(values[0].compare("kind") == 0)
+			kind = values[1];
+		else if(values[0].compare("num_cores") == 0)
+			num_cores = values[1];
+		else if(values[0].compare("mem") == 0)
+			mem_size = values[1];
+	}
+
+	if(name.compare("") == 0 || kind.compare("") == 0 || num_cores.compare("") == 0 || mem.compare("") == 0) {
+		fprintf(stderr, "===GECKO: Error in declaring location type within the config file: name(%s) - "
+				  "kind(%s) - num_cores(%s) - mem(%s)\n", name.c_str(), kind.c_str(), num_cores.c_str(), mem.c_str());
+		exit(1);
+	}
+
+	trim(kind);
+	toUpper(kind);
+	GeckoLocationArchTypeEnum deviceType;
+	if(kind.compare("X32") == 0)
+		deviceType = GECKO_X32;
+	else if(kind.compare("X64") == 0)
+		deviceType = GECKO_X64;
+	else if(kind.compare("CUDA") == 0)
+		deviceType = GECKO_CUDA;
+	else if(kind.compare("UNIFIED_MEMORY") == 0)
+		deviceType = GECKO_UNIFIED_MEMORY;
+	else
+		deviceType = GECKO_UNKOWN;
+
+	geckoLocationtypeDeclare((char*)name.c_str(), deviceType, "", stoi(num_cores, NULL, 10), mem_size.c_str(), "");
+
+}
+
+inline
+void __geckoLoadConfFileLocDeclare(vector<string> &fields) {
+
+	string type;
+	vector<string> names;
+	int all=0, start, count;
+	for(int j=1;j<fields.size();j++) {
+		vector<string> values;
+		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
+		if(values[0].compare("name") == 0) {
+			for(int k=1;k<values.size();k++)
+				names.push_back(values[k]);
+		} else if(values[0].compare("type") == 0)
+			type = values[1];
+		else if(values[0].compare("all") == 0)
+			all = 1;
+		else if(values[0].compare("start") == 0)
+			start = stoi(values[1], NULL, 10);
+		else if(values[0].compare("count") == 0)
+			count = stoi(values[1], NULL, 10);
+	}
+
+	if(names.size() == 0 || type.compare("") == 0) {
+		for(int k=0;k<names.size();k++)
+			fprintf(stderr, "===GECKO: Error in declaring location(s) within the config file: name(%s) - "
+							"type(%s)\n", names[k].c_str(), type.c_str());
+		exit(1);
+	}
+
+	for(int k=0;k<names.size();k++)
+		geckoLocationDeclare(trim(names[k]).c_str(), trim(type).c_str(), all, start, count);
+
+}
+
+inline
+void __geckoLoadConfFileHierDeclare(vector<string> &fields) {
+
+	string op, parent;
+	vector<string> children;
+	int all=0, start, count;
+	for(int j=1;j<fields.size();j++) {
+		vector<string> values;
+		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
+		if(values[0].compare("children") == 0) {
+			op = children[1];
+			for(int k=2;k<values.size();k++)
+				children.push_back(values[k]);
+		} else if(values[0].compare("parent") == 0)
+			parent = values[1];
+		else if(values[0].compare("all") == 0)
+			all = 1;
+		else if(values[0].compare("start") == 0)
+			start = stoi(values[1], NULL, 10);
+		else if(values[0].compare("count") == 0)
+			count = stoi(values[1], NULL, 10);
+	}
+
+	if(children.size() == 0 || parent.compare("") == 0 || (op.compare("+") == 0 && op.compare("-") == 0)) {
+		for(int k=0;k<children.size();k++)
+			fprintf(stderr, "===GECKO: Error in declaring location(s) within the config file: children(%s) - "
+							"op(%s) - parent(%s)\n", children[k].c_str(), op.c_str(), parent.c_str());
+		exit(1);
+	}
+
+	for(int k=0;k<children.size();k++)
+		geckoHierarchyDeclare(op[0], (char*) trim(children[k]).c_str(), trim(parent).c_str(), all, start, count);
+
+
+}
+
+GeckoError geckoLoadConfigWithFile(char *filename) {
+	vector< vector<string> > lines;
+	__geckoConfigFileLoadFile(filename, lines);
+
+	for(int i=0;i<lines.size();i++) {
+		vector<string> &fields = lines[i];
+
+		if(fields[0].compare("loctype") == 0) {
+			__geckoLoadConfFileDeclLocType(fields);
+		} else if(fields[0].compare("location") == 0) {
+			__geckoLoadConfFileLocDeclare(fields);
+		} else if(fields[0].compare("hierarchy") == 0) {
+			__geckoLoadConfFileHierDeclare(fields);
+		}
+	}
+
+	return GECKO_ERR_SUCCESS;
+}
 
 GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
                                     int numCores, const char *mem_size, const char *mem_type) {
