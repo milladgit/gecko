@@ -12,6 +12,8 @@ bin/
 bin/*
 CMakeLists.txt
 cmake-build-debug/
+lib/
+lib/*
 
 *.orig
 output_*

@@ -26,10 +26,11 @@ int main() {
 
 
 	int N = 2000;
-	double *X, *Y, *Z;
+	double *X, *Y, *Z, *W;
 	#pragma gecko memory allocate(X[0:N]) type(double) location("LocN") 
 	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocG") 
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
+	#pragma gecko memory allocate(W[0:N]) type(double) location("LocA") 
 
 
 	for (int i = 0; i<N; i++) {
@@ -74,29 +75,33 @@ int main() {
 	// #pragma gecko region end
 
 
-	a = 0;
-	b = N;
 	double coeff = 3.4;
-	#pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
-	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
-	#pragma acc parallel loop 
-	for (int i = a; i<b; i++) {
-		Z[i] = coeff;
-	}
-	#pragma gecko region end
+	for(int q=0;q<2;q++) {
+		a = 0;
+		b = N;
+		#pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
+		// #pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
+		#pragma acc parallel loop present(Z)
+		for (int i = a; i<b; i++) {
+			Z[i] = (q+1) * coeff;
+		}
+		#pragma gecko region end
 
+	}
 	#pragma gecko region pause at("LocA") 
+
+
 
 	// #pragma acc wait
 
 
 
 	printf("Checking...\n");
-	for(int i=0;i<N;i++) {
-		if(Z[i] != (coeff)) {
-			printf("Error in index: %d\n", i);
-		}
-	}
+	// for(int i=0;i<N;i++) {
+	// 	if(Z[i] != (coeff)) {
+	// 		printf("Error in index: %d\n", i);
+	// 	}
+	// }
 	printf("Checking...Done\n");
 
 

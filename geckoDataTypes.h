@@ -19,7 +19,7 @@ typedef enum {
 } GeckoLocationArchTypeEnum;
 
 typedef enum {
-	GECKO_ERR_SUCCESS = 0,
+	GECKO_SUCCESS = 0,
 	GECKO_ERR_FAILED,
 	GECKO_ERR_UNKNOWN,
 	GECKO_ERR_LEN

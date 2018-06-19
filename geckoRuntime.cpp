@@ -24,6 +24,13 @@ using namespace std;
 #define GECKO_LOCATION_INDEX_OFFSET 10
 
 
+/*
+ * Controlling how AcquireLocations function behaves.
+ */
+//#define GECKO_WAIT_ON_ALL_DEV_TO_BE_FREE
+
+
+
 class GeckoCUDAProp {
 public:
 	int deviceCountTotal;
@@ -119,7 +126,7 @@ GeckoError geckoInit() {
 		fprintf(stderr, "===GECKO: Started...\n");
 		#endif
 	}
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 void geckoCleanup() {
@@ -318,7 +325,7 @@ GeckoError geckoLoadConfigWithFile(char *filename) {
 		}
 	}
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
@@ -336,7 +343,7 @@ GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum device
 	fprintf(stderr, "===GECKO: Defining location type \"%s\" as (%s) \n", name,
 	        geckoGetLocationTypeName(deviceType));
 	#endif
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 
@@ -451,7 +458,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 
 	}
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 
@@ -551,7 +558,7 @@ GeckoError geckoHierarchyDeclare(char operation, const char *child_name, const c
 		#endif
 
 	}
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 inline
@@ -606,8 +613,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 		case GECKO_X64:
 			addr = malloc(sz_in_byte);
 #ifdef INFO
-		fprintf(stderr, "===GECKO: MALLOC - location %s - size %d\n", var->loc.c_str(),
-			        var->dataSize * var->count);
+		fprintf(stderr, "===GECKO: MALLOC - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
 #endif
 			break;
 #ifdef CUDA_ENABLED
@@ -615,7 +621,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 			acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
 			GECKO_CUDA_CHECK(cudaMalloc(&addr, sz_in_byte));
 #ifdef INFO
-			fprintf(stderr, "===GECKO: CUDAMALLOC - location %s - size %d\n", var->loc.c_str(), sz_in_byte);
+			fprintf(stderr, "===GECKO: CUDAMALLOC - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
 #endif //INFO
 			break;
 #endif
@@ -624,7 +630,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 #ifdef CUDA_ENABLED
 			GECKO_CUDA_CHECK(cudaMallocManaged(&addr, sz_in_byte));
 #ifdef INFO
-			fprintf(stderr, "===GECKO: UVM ALLOCATION - location %s - size %d\n", var->loc.c_str(), sz_in_byte);
+			fprintf(stderr, "===GECKO: UVM ALLOCATION - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
 #endif  // INFO
 #else   // CUDA_ENABLED
 			fprintf(stderr, "===GECKO: CUDA APIs are required for unified memory allocation.\n");
@@ -638,11 +644,6 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 					geckoGetLocationTypeName(type));
 			exit(1);
 	}
-
-
-#ifdef INFO
-	fprintf(stderr, "===GECKO: ALLOCATION variable %p - location %s - addr %p\n", addr, var->loc.c_str(), addr);
-#endif
 
 	return addr;
 }
@@ -678,25 +679,25 @@ GeckoError geckoMemoryAllocationAlgorithm(GeckoMemory &var) {
 	GeckoLocation *node = GeckoLocation::find(var.loc);
 	if(node->getChildren().size() == 0) {
 //		This node is a leaf node!
-		GeckoLocationArchTypeEnum type = node->getLocationType().type;
-		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA)
+		const GeckoLocationArchTypeEnum type = node->getLocationType().type;
+		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA) {
 			addr = geckoAllocateMemory(type, &var);
-		else {
+		} else {
 			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
 					__FILE__, __LINE__, var.loc.c_str());
+			exit(1);
 		}
 	} else {
-		bool areAllCPUs = geckoAreAllChildrenCPU(node);
-		if(areAllCPUs) {
+		const bool areAllCPUs = geckoAreAllChildrenCPU(node);
+		if(areAllCPUs)
 			addr = geckoAllocateMemory(GECKO_X64, &var);
-		} else {
+		else
 			addr = geckoAllocateMemory(GECKO_UNIFIED_MEMORY, &var);
-		}
 	}
 
 	var.address = addr;
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location) {
@@ -719,7 +720,7 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 
 	*v = variable.address;
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 class __geckoLocationIterationType {
@@ -754,6 +755,7 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 }
 
 void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
+#ifdef GECKO_WAIT_ON_ALL_DEV_TO_BE_FREE
 	const int count = locList.size();
 	while(1) {
 		omp_set_lock(&lock_freeResources);
@@ -776,9 +778,22 @@ void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
 		omp_unset_lock(&lock_freeResources);
 		break;
 	}
+#else
+	const int count = locList.size();
+	omp_set_lock(&lock_freeResources);
+	for(int i=0;i<count;i++) {
+		GeckoLocation *device = locList[i].loc;
+		const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
+		if(iter != freeResources.end())
+			freeResources.erase(iter);
+	}
+	omp_unset_lock(&lock_freeResources);
+#endif
 }
 
 void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
+
+#ifdef GECKO_WAIT_ON_ALL_DEV_TO_BE_FREE
 	const int locListSize = locList.size();
 	int *indexes = (int *) malloc(sizeof(int) * locListSize);
 	while(1) {
@@ -807,6 +822,15 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 		break;
 	}
 	free(indexes);
+
+#else
+	int i = rand() % ((int)locList.size());
+	GeckoLocation *device = locList[i].loc;
+	__geckoLocationIterationType gliter = locList[i];
+	locList.clear();
+	locList.push_back(gliter);
+#endif
+
 }
 
 
@@ -834,7 +858,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 
 	if(totalIterations == 0)
-		return GECKO_ERR_SUCCESS;
+		return GECKO_SUCCESS;
 
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
@@ -947,7 +971,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	*out_beginLoopIndex = beginLoopIndex;
 	*out_endLoopIndex = endLoopIndex;
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 GeckoError geckoSetDevice(GeckoLocation *device) {
@@ -962,7 +986,7 @@ GeckoError geckoSetDevice(GeckoLocation *device) {
 	else if(loc_type == GECKO_X64 || loc_type == GECKO_X32)
 		acc_set_device_num(device->getLocationIndex(), acc_device_host);
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 
@@ -975,14 +999,14 @@ GeckoError geckoSetBusy(GeckoLocation *device) {
 	}
 	freeResources.erase(iter);
 	omp_unset_lock(&lock_freeResources);
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 GeckoError geckoUnsetBusy(GeckoLocation *device) {
 	omp_set_lock(&lock_freeResources);
 	freeResources.insert(device);
 	omp_unset_lock(&lock_freeResources);
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev) {
@@ -994,7 +1018,7 @@ void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, G
 
 GeckoError geckoWaitOnLocation(char *loc_at) {
 	if(strlen(loc_at) == 0)
-		return GECKO_ERR_SUCCESS;
+		return GECKO_SUCCESS;
 
 	GeckoLocation *location = GeckoLocation::find(string(loc_at));
 	if(location == NULL) {
@@ -1017,7 +1041,7 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 		geckoUnsetBusy(loc);
 	}
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 inline
@@ -1075,7 +1099,7 @@ GeckoError geckoMemoryFreeAlgorithm(GeckoLocationArchTypeEnum type, void *addr, 
 		}
 	}
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }
 
 GeckoError geckoFree(void *ptr) {
@@ -1092,5 +1116,5 @@ GeckoError geckoFree(void *ptr) {
 	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
 	geckoMemoryTable.erase(iter);
 
-	return GECKO_ERR_SUCCESS;
+	return GECKO_SUCCESS;
 }

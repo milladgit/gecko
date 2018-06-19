@@ -1,5 +1,5 @@
 
-import os,sys,glob
+import os,sys,re,glob,atexit
 import geckoREUtilities as gREU
 
 pragma_keyword 				= "gecko"
@@ -460,6 +460,8 @@ class SourceFile(object):
 			line += "int devIndex = omp_get_thread_num();\n"
 			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
+			if datatype is None:
+				datatype = ""
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
 
 			if paranthesis is None:
@@ -622,7 +624,7 @@ class SourceFile(object):
 
 		return finalKeywords
 	
-	def processFile(self):
+	def processFile(self, overwrite=False):
 		f = open(self.filename, "r")
 		lines = f.readlines()
 		f.close()
@@ -676,7 +678,11 @@ class SourceFile(object):
 			i += 1
 
 		outputLines.insert(0, '#include "geckoRuntime.h"\n')
-		f = open("output_"+self.filename, "w")
+
+		output_filename = "output_"+self.filename
+		if overwrite:
+			output_filename = self.filename
+		f = open(output_filename, "w")
 		for l in outputLines:
 			f.write(l)
 		f.close()
@@ -684,17 +690,157 @@ class SourceFile(object):
 
 
 
-listOfFiles = glob.glob("*.h")
-listOfFiles += glob.glob("*.cpp")
-listOfFiles += glob.glob("*.cu")
+gecko_orig_folder_name = "__GECKO__ORIG__"
+gecko_conv_folder_name = "__GECKO__CONVERT__"
+do_not_remove = False
 
-# listOfFiles = ["test.cpp"]
-listOfFiles = ["test.cpp", "test_with_config.cpp"]
-# listOfFiles = ["stencil.cpp", "dot_product.cpp", "matrix_mul.cpp"]
-print listOfFiles
 
-for f in listOfFiles:
-	src = SourceFile(f)
-	src.processFile()
-	os.system("astyle output_%s" % (f))
+def get_list_of_files(folder):
+	ext_list = ["*.h", "*.hpp", "*.c", "*.cpp"]
+	file_list = []
+	for ext in ext_list:
+		for f in glob.glob(folder+"/"+ext):
+			if os.path.isfile(f):
+				file_list.append(f)
+	return file_list
 
+
+def prune_file_list(file_list):
+	pattern = r"#pragma[ ]+%s[ ]+" % (pragma_keyword)
+	pruned_list = []
+	for fname in file_list:
+		f = open(fname, "r")
+		lines = f.readlines()
+		f.close()
+
+
+		found = False
+		for l in lines:
+			match = re.search(pattern, l)
+			if match is not None:
+				found = True
+				break
+
+		if found:
+			pruned_list.append(fname)
+
+	return pruned_list
+
+
+def forward_conversion(folder):
+	global do_not_remove
+
+	if os.path.exists("%s/%s" % (folder, gecko_orig_folder_name)) or os.path.exists("%s/%s" % (folder, gecko_conv_folder_name)):
+		do_not_remove = True
+		print "\n\nPlease revert back the changes with backward command.\n"
+		return
+	
+	file_list = get_list_of_files(folder)
+	file_list = prune_file_list(file_list)
+
+	os.system("mkdir -p %s" % (gecko_orig_folder_name))
+	for f in file_list:
+		os.system("cp %s %s/" % (f, gecko_orig_folder_name))
+	os.system("cp -r %s %s/" % (gecko_orig_folder_name, gecko_conv_folder_name))
+
+	# os.system("rm -f log_astyle.log")
+	for f in file_list:
+		print "Converting %s..." % (f)
+		new_filename = "%s/%s" % (gecko_conv_folder_name, f)
+		src = SourceFile(new_filename)
+		src.processFile(True)
+		os.system("astyle %s &> /dev/null" % (new_filename))
+
+	do_not_remove = True
+
+	for f in file_list:
+		os.system("cp %s/%s ./" % (gecko_conv_folder_name, f))
+
+
+
+
+def backward_conversion(folder):
+	global do_not_remove
+	if not os.path.exists("%s/%s" % (folder, gecko_orig_folder_name)):
+		do_not_remove = True
+		print "\n\nPlease apply the changes with forward command.\n"
+		return
+
+	file_list = get_list_of_files("%s/%s" % (folder, gecko_orig_folder_name))
+	for f in file_list:
+		print "Converting %s..." % (f)
+		os.system("cp %s ./" % (f))
+
+	os.system("rm -rf %s/%s" % (folder, gecko_orig_folder_name))
+	os.system("rm -rf %s/%s" % (folder, gecko_conv_folder_name))
+
+
+
+# @atexit.register
+# def check_for_exit():
+# 	if do_not_remove:
+# 		return
+# 	os.system("rm -rf ./%s" % (gecko_orig_folder_name))
+# 	os.system("rm -rf ./%s" % (gecko_conv_folder_name))
+
+
+def convert_based_on_actions(action, folder):
+	if action == "forward":
+		forward_conversion(folder)
+	elif action == "backward":
+		backward_conversion(folder)
+
+
+
+
+
+def usage():
+	print "---------------------------------------------------------------------------------------------------------"
+	print "\n%s script should be used as one of the following:\n" % (sys.argv[0])
+	print "\t1. python %s  :  This will search hardcoded files within script and converts them." % (sys.argv[0])
+	print "\t2. python %s {forward,backward} <folder_path>  :  This will convert files with a folder in forward/backward direction" % (sys.argv[0])
+	print "\n"
+	print "---------------------------------------------------------------------------------------------------------"
+
+
+def main():
+	if len(sys.argv) > 1:
+		action = sys.argv[1]
+		if action not in ["forward", "backward"]:
+			usage()
+			exit(1)
+		if len(sys.argv) == 1:
+			usage()
+			exit(1)
+
+		folder = sys.argv[2]
+		if folder == "":
+			usage()
+			exit(1)
+		if not os.path.exists(folder):
+			usage()
+			exit(1)
+
+		convert_based_on_actions(action, folder)
+
+		return
+
+
+	listOfFiles = glob.glob("*.h")
+	listOfFiles += glob.glob("*.cpp")
+	listOfFiles += glob.glob("*.cu")
+
+	# listOfFiles = ["test.cpp"]
+	listOfFiles = ["test.cpp", "test_with_config.cpp"]
+	# listOfFiles = ["stencil.cpp", "dot_product.cpp", "matrix_mul.cpp"]
+	print listOfFiles
+
+	for f in listOfFiles:
+		src = SourceFile(f)
+		src.processFile()
+		os.system("astyle output_%s" % (f))
+
+
+
+if __name__ == '__main__':
+	main()

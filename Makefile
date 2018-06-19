@@ -1,5 +1,6 @@
 
 BIN_DIR=./bin
+LIB_DIR=./lib
 
 BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_test_with_config
 # BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_stencil
@@ -8,11 +9,12 @@ BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_test_with_config
 # GECKO_FILES=geckoGraph.cpp geckoRuntime.cpp geckoUtilsAcc.cpp 
 GECKO_FILES=geckoRuntime.cpp geckoHierarchicalTree.cpp 
 GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
+GECKO_LIB_FILE=$(LIB_DIR)/libgecko.a
 
 CUDA_HOME = /usr/local/cuda-9.0
 
 ENABLE_CUDA = ON
-ENABLE_DEBUG = ON
+ENABLE_DEBUG = OFF
 
 LDFLAGS=-lm
 
@@ -31,14 +33,14 @@ CXX=pgc++
 CXXFLAGS=-w -mp
 LDFLAGS=-lm -mp
 OUTPUT_EXE=output_test
-CXXFLAGS += -acc -ta=tesla,multicore
+CXXFLAGS += -acc -ta=tesla,multicore -Minfo=accel
 
 
 CXXFLAGS_DEBUG=-std=c++11 -O0 -g -m64
 CXXFLAGS_RELEASE=-std=c++11 -O3 -m64
 
 
-CXXFLAGS += -DINFO
+# CXXFLAGS += -DINFO
 
 
 OUTPUT_EXE=output_test 
@@ -72,7 +74,7 @@ endif
 
 
 
-all: doTransformation $(BINS)
+all: doTransformation lib $(BINS)
 # all: $(BINS)
 
 
@@ -87,6 +89,11 @@ $(BIN_DIR)/test: test.o $(BIN_DIR)
 	${CXX} ${CXXFLAGS} test.cpp -o $(BIN_DIR)/test
 
 
+lib: $(GECKO_OBJ_FILES) 
+	mkdir -p $(LIB_DIR)
+	ar rc $(GECKO_LIB_FILE) $(GECKO_OBJ_FILES)
+	ranlib $(GECKO_LIB_FILE)
+
 # %.o: %.cpp
 # 	${NVCC} ${CXXFLAGS} -c $< -o $@
 
@@ -98,8 +105,8 @@ geckoRuntime.o: geckoRuntime.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 	# $(NVCC) $(CUDAFLAGS) -c $< -o $@
 
-geckoUtilsAcc.o: geckoUtilsAcc.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+# geckoUtilsAcc.o: geckoUtilsAcc.cpp
+# 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 
 $(BIN_DIR)/${OUTPUT_EXE}: ${GECKO_OBJ_FILES} $(BIN_DIR) output_test.cpp 
@@ -121,5 +128,5 @@ dot: $(wildcard *.dot)
 	dot -Tpdf $< -o $<.pdf
 
 clean:
-	rm -rf *.o $(BIN_DIR) *.dot
+	rm -rf *.o $(BIN_DIR) $(LIB_DIR) *.dot
 
