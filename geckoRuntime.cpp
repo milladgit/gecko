@@ -61,6 +61,8 @@ static unordered_map<void*, GeckoMemory> geckoMemoryTable;
 //static unordered_map<void*, GeckoAddressInfo> geckoAddressTable;
 static unordered_set<GeckoLocation*> freeResources;
 static omp_lock_t lock_freeResources;
+static unordered_map<int, string> geckoThreadDeviceMap;
+
 
 
 static inline 
@@ -1033,12 +1035,14 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 #pragma omp parallel num_threads(devCount)
 //	for(int devIndex=0;devIndex<devCount;devIndex++)
 	{
-		int devIndex = omp_get_thread_num();
-		GeckoLocation *loc = children_names[devIndex].loc;
-		geckoSetDevice(loc);
-		int async_id = loc->getAsyncID();
+		int tid = omp_get_thread_num();
+		GeckoLocation *loc = GeckoLocation::find(geckoThreadDeviceMap[tid]);
+		if(loc != NULL) {
+			geckoSetDevice(loc);
+			int async_id = loc->getAsyncID();
 #pragma acc wait(async_id)
-		geckoUnsetBusy(loc);
+			geckoUnsetBusy(loc);
+		}
 	}
 
 	return GECKO_SUCCESS;
@@ -1115,6 +1119,12 @@ GeckoError geckoFree(void *ptr) {
 	}
 	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
 	geckoMemoryTable.erase(iter);
+
+	return GECKO_SUCCESS;
+}
+
+GeckoError geckoBindLocationToThread(int threadID, GeckoLocation *loc) {
+	geckoThreadDeviceMap[threadID] = loc->getLocationName();
 
 	return GECKO_SUCCESS;
 }

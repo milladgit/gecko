@@ -458,6 +458,7 @@ class SourceFile(object):
 			line += "#pragma omp parallel num_threads(jobCount)\n"
 			line += "{\n"
 			line += "int devIndex = omp_get_thread_num();\n"
+			line += "geckoBindLocationToThread(devIndex, dev[devIndex]);\n"
 			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:

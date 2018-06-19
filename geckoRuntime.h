@@ -58,6 +58,8 @@ GeckoError geckoWaitOnLocation(char *locationName);
 
 GeckoError geckoFree(void *ptr);
 
+GeckoError geckoBindLocationToThread(int threadID, GeckoLocation *loc);
+
 void geckoDrawHierarchyTree(char *rootNode, char *filename);
 
 #endif
