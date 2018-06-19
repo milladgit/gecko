@@ -450,9 +450,9 @@ class SourceFile(object):
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
 			if self.exec_pol in ['"range"', '"percentage"']:
-				line += "jobCount = ranges_count;"
+				line += "jobCount = ranges_count;\n"
 			else:
-				line += "jobCount = devCount;"
+				line += "jobCount = devCount;\n"
 
 			# line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
 			line += "#pragma omp parallel num_threads(jobCount)\n"
