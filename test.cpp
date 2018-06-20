@@ -5,7 +5,7 @@
 int main() {
 
 	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
-	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
+	#pragma gecko loctype name("tesla") kind("NVIDIA", "cc50") mem("4GB")
 	#pragma gecko loctype name("NODE_MEMORY") kind("Unified_Memory") size("16GB")
 
 

@@ -78,8 +78,8 @@ char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType) {
 			return "x32";
 		case GECKO_X64:
 			return "X64";
-		case GECKO_CUDA:
-			return "CUDA";
+		case GECKO_NVIDIA:
+			return "NVIDIA";
 	}
 	return "UNKNOWN";
 }
@@ -225,8 +225,8 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 		deviceType = GECKO_X32;
 	else if(kind.compare("X64") == 0)
 		deviceType = GECKO_X64;
-	else if(kind.compare("CUDA") == 0)
-		deviceType = GECKO_CUDA;
+	else if(kind.compare("NVIDIA") == 0)
+		deviceType = GECKO_NVIDIA;
 	else if(kind.compare("UNIFIED_MEMORY") == 0)
 		deviceType = GECKO_UNIFIED_MEMORY;
 	else
@@ -332,9 +332,8 @@ GeckoError  geckoLoadConfigWithEnv() {
 	const char *env_name = "GECKO_CONFIG_FILE";
 	char *filename = getenv(env_name);
 	if(filename == NULL) {
-#ifdef WARNING
-		fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s (%d) \n", name,
-				geckoGetLocationTypeName(deviceType), deviceType);
+#if defined(WARNING) || defined(INFO)
+		fprintf(stderr, "===GECKO: Unable to find the environment variable (%s). \n", env_name);
 #endif
 		return GECKO_ERR_FAILED;
 	}
@@ -400,12 +399,12 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 
 		__geckoSetLocationType(_type, locObj);
 		#ifdef CUDA_ENABLED
-		if(locObj.type == GECKO_CUDA) {
+		if(locObj.type == GECKO_NVIDIA) {
 			begin = 0;
 			end = geckoCUDA.deviceCountTotal;
 		}
 		#else
-		if(locObj.type == GECKO_CUDA) {
+		if(locObj.type == GECKO_NVIDIA) {
 			fprintf(stderr, "===GECKO: No CUDA is available on this system.\n");
 			exit(1);			
 		}
@@ -436,7 +435,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		__geckoSetLocationType(_type, locObj);
 
 		#ifdef CUDA_ENABLED
-		if(locObj.type == GECKO_CUDA) {
+		if(locObj.type == GECKO_NVIDIA) {
 			if (geckoCUDA.deviceDeclared >= geckoCUDA.deviceCountTotal) {
 				fprintf(stderr, "===GECKO: Unable to declare more than available CUDA devices. "
 						        "Total Available: %d - Trying to declare: %d - Location: %s\n",
@@ -452,7 +451,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 			index = geckoX64DeviceIndex++;
 		}
 		#ifdef CUDA_ENABLED
-		else if(locObj.type == GECKO_CUDA) {
+		else if(locObj.type == GECKO_NVIDIA) {
 //			index = geckoCUDADeviceIndex++;
 			index = geckoCUDA.deviceDeclared++;
 		}
@@ -506,12 +505,12 @@ GeckoError geckoHierarchyDeclare(char operation, const char *child_name, const c
 		GeckoLocationType locObj = child->getLocationType();
 		// __geckoSetLocationType(_type, locObj);
 		#ifdef CUDA_ENABLED
-		if(locObj.type == GECKO_CUDA) {
+		if(locObj.type == GECKO_NVIDIA) {
 			begin = 0;
 			end = geckoCUDA.deviceCountTotal;
 		}
 		#else
-		if(locObj.type == GECKO_CUDA) {
+		if(locObj.type == GECKO_NVIDIA) {
 			fprintf(stderr, "===GECKO: No CUDA is available on this system.\n");
 			exit(1);			
 		}
@@ -632,7 +631,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 #endif
 			break;
 #ifdef CUDA_ENABLED
-		case GECKO_CUDA:
+		case GECKO_NVIDIA:
 			acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
 			GECKO_CUDA_CHECK(cudaMalloc(&addr, sz_in_byte));
 #ifdef INFO
@@ -695,7 +694,7 @@ GeckoError geckoMemoryAllocationAlgorithm(GeckoMemory &var) {
 	if(node->getChildren().size() == 0) {
 //		This node is a leaf node!
 		const GeckoLocationArchTypeEnum type = node->getLocationType().type;
-		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA) {
+		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_NVIDIA) {
 			addr = geckoAllocateMemory(type, &var);
 		} else {
 			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
@@ -996,7 +995,7 @@ GeckoError geckoSetDevice(GeckoLocation *device) {
 
 
 	GeckoLocationArchTypeEnum loc_type = device->getLocationType().type;
-	if(loc_type == GECKO_CUDA)
+	if(loc_type == GECKO_NVIDIA)
 		acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
 	else if(loc_type == GECKO_X64 || loc_type == GECKO_X32)
 		acc_set_device_num(device->getLocationIndex(), acc_device_host);
@@ -1073,7 +1072,7 @@ void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *
 #endif
 			break;
 #ifdef CUDA_ENABLED
-		case GECKO_CUDA:
+		case GECKO_NVIDIA:
 			acc_set_device_num(loc->getLocationIndex(), acc_device_nvidia);
 		case GECKO_UNIFIED_MEMORY:
 			GECKO_CUDA_CHECK(cudaFree(addr));
@@ -1101,7 +1100,7 @@ GeckoError geckoMemoryFreeAlgorithm(GeckoLocationArchTypeEnum type, void *addr, 
 	if(node->getChildren().size() == 0) {
 //		This node is a leaf node!
 		GeckoLocationArchTypeEnum type = node->getLocationType().type;
-		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_CUDA)
+		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_NVIDIA)
 			geckoFreeMemory(type, addr, node);
 		else {
 			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for freeing memory. Location: %s\n",

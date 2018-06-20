@@ -48,12 +48,10 @@ class SourceFile(object):
 					micro_arch = kind[1].upper()
 					# micro_arch = micro_arch[1:-1]
 
-				if family in ["CC2.0", "CC3.0", "CC4.0", "CC5.0"]:
-					family = "CUDA"
-
-				if family not in ("X64", "X32", "CUDA", "UNIFIED_MEMORY"):
+				if family not in ("X64", "X32", "NVIDIA", "UNIFIED_MEMORY"):
 					print "Line %d - Error in kind of locationtype - Unknown family (%s)" % (lineNumber, family)
 					exit(1)
+					
 			elif k[0] == "num_cores":
 				num_cores = k[1][:-1]
 			elif k[0] == "mem":
