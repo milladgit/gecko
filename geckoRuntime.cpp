@@ -341,8 +341,8 @@ GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum device
 	d.mem_type = (char*)mem_type;
 	listOfAvailLocationTypes[string(name)] = d;
 	#ifdef INFO
-	fprintf(stderr, "===GECKO: Defining location type \"%s\" as (%s) \n", name,
-	        geckoGetLocationTypeName(deviceType));
+	fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s (%d) \n", name,
+	        geckoGetLocationTypeName(deviceType), deviceType);
 	#endif
 	return GECKO_SUCCESS;
 }
