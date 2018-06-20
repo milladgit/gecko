@@ -455,7 +455,8 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		locationIndex++;
 
 		#ifdef INFO
-		fprintf(stderr, "===GECKO: Declaring location '%s' - index: %d - total declared: %d\n", &name[0], index, locationIndex);
+		fprintf(stderr, "===GECKO: Declaring location '%s' - type: %s - index: %d - total declared: %d\n", &name[0],
+		        geckoGetLocationTypeName(locObj.type), index, locationIndex);
 		#endif		
 
 	}
