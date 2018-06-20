@@ -505,17 +505,31 @@ class SourceFile(object):
 	def processConfig(self, keywords, lineNumber):
 		root = ""
 		filename = '"gecko.conf"'
+		is_file_method_chosen = False
+		env = '"GECKO_CONFIG_FILE"'
+		is_env_method_chosen = False
 
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
-			if len(k) > 1 and k[0] == "file":
-				filename = k[1][:-1]
+			if k[0] == "file":
+				is_file_method_chosen = True
+				if len(k) > 1:
+					filename = k[1][:-1]
+			elif k[0] == "env":
+				is_env_method_chosen = True
 
 			i += 1
 
+		if is_file_method_chosen and is_env_method_chosen:
+			print "Line: %d - The 'file' and 'env' methods could not be chosen at the same time." % (lineNumber)
+			exit(1)
 
-		line = "%sLoadConfigWithFile(%s);" % (pragma_prefix_funcname, filename)
+
+		if is_file_method_chosen:
+			line = "%sLoadConfigWithFile(%s);" % (pragma_prefix_funcname, filename)
+		elif is_env_method_chosen:
+			line = "%sLoadConfigWithEnv();" % (pragma_prefix_funcname)
 
 		return line
 

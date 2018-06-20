@@ -325,8 +325,20 @@ GeckoError geckoLoadConfigWithFile(char *filename) {
 			__geckoLoadConfFileHierDeclare(fields);
 		}
 	}
-
 	return GECKO_SUCCESS;
+}
+
+GeckoError  geckoLoadConfigWithEnv() {
+	const char *env_name = "GECKO_CONFIG_FILE";
+	char *filename = getenv(env_name);
+	if(filename == NULL) {
+#ifdef WARNING
+		fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s (%d) \n", name,
+				geckoGetLocationTypeName(deviceType), deviceType);
+#endif
+		return GECKO_ERR_FAILED;
+	}
+	geckoLoadConfigWithFile(filename);
 }
 
 GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,

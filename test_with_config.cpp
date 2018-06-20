@@ -4,7 +4,7 @@
 
 int main() {
 
-	#pragma gecko config file
+	#pragma gecko config env 
  
 // 	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
 // 	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
