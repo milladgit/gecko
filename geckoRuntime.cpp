@@ -103,8 +103,7 @@ GeckoError geckoInit() {
 		#ifdef CUDA_ENABLED
 //		GECKO_CUDA_CHECK(cudaGetDeviceCount(&geckoCUDA.deviceCountTotal));
 		geckoCUDA.deviceCountTotal = acc_get_num_devices(acc_device_nvidia);
-		if(geckoCUDA.deviceCountTotal != 0)
-			geckoCUDA.deviceDeclared = 0;
+		geckoCUDA.deviceDeclared = 0;
 		#ifdef INFO
 		fprintf(stderr, "===GECKO: CUDA Devices available(%d)\n", geckoCUDA.deviceCountTotal);
 		#endif
@@ -432,7 +431,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 				        geckoCUDA.deviceCountTotal, geckoCUDA.deviceDeclared + 1, &name[0]);
 				exit(1);
 			}
-			geckoCUDA.deviceDeclared++;
+//			geckoCUDA.deviceDeclared++;
 		}
 		#endif
 
@@ -442,7 +441,8 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		}
 		#ifdef CUDA_ENABLED
 		else if(locObj.type == GECKO_CUDA) {
-			index = geckoCUDADeviceIndex++;
+//			index = geckoCUDADeviceIndex++;
+			index = geckoCUDA.deviceDeclared++;
 		}
 		#endif
 
@@ -455,7 +455,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		locationIndex++;
 
 		#ifdef INFO
-		fprintf(stderr, "===GECKO: Declaring location %s\n", &name[0]);
+		fprintf(stderr, "===GECKO: Declaring location '%s' - index: %d - total declared: %d\n", &name[0], index, locationIndex);
 		#endif		
 
 	}

@@ -19,3 +19,8 @@ lib/*
 output_*
 
 *.pyc
+
+__GECKO__*
+__GECKO__*/
+__GECKO__*/*
+
