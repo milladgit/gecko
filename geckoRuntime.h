@@ -31,6 +31,15 @@
 #include "geckoDataTypes.h"
 #include "geckoHierarchicalTree.h"
 
+#ifndef _OPENMP
+#error Please enable OpenMP to use Gecko.
+#endif
+
+#ifndef _OPENACC
+#error Please enable OpenACC to use Gecko.
+#endif
+
+
 using namespace std;
 
 

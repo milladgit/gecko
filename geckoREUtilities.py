@@ -4,20 +4,34 @@ import os, sys, re
 def parseForLoop(line):
 	l = line.strip()
 	pattern_for = r'for\s*'
-	pattern_data_type = r'((?P<datatype>\w+))*\s*'
-	pattern_var_name = r'(?P<varname>\w+)\s*'
+	# pattern_data_type   = r'((?P<datatype>[\w\s_]+))*\s*'
+	# pattern_data_type   = r'((?P<datatype>\w+))*'
+	# pattern_data_type_2 = r'((?P<datatype2>\w+))*'
+	pattern_data_type_var_name = r'((?P<datatype_varname>[a-zA-Z0-9_ ]+)\s*)*'
+	#pattern_var_name = r'(?P<varname>\w+)\s*'
 	pattern_initval = r'\s*(?P<initval>\w+)\s*'
 	pattern_var_cond = r'\s*(?P<varcond>\w+)\s*'
 	pattern_cond = r'(?P<cond>[>=<]+)\s*'
-	pattern_boundary = r'(?P<boundary>\w+)\s*'
-	pattern_increment = r'\s*(?P<increment1>[0-9a-zA-Z+=\-*/]*)\s*(?P<increment2>[0-9a-zA-Z+=\-*/]*)\s*(?P<increment3>[0-9a-zA-Z+=\-*/]*)\s*'
-	pattern = r'%s\((%s%s=%s)*;%s%s%s;%s\)\s*(?P<paranthesis>[{])*' % (pattern_for, pattern_data_type, pattern_var_name, pattern_initval, pattern_var_cond, pattern_cond, pattern_boundary, pattern_increment)
+	pattern_boundary = r'(?P<boundary>[\w_+=\-*/]+)\s*'
+	pattern_increment = r'\s*(?P<increment1>[0-9a-zA-Z_+=\-*/]*)\s*(?P<increment2>[0-9a-zA-Z+=\-*/]*)\s*(?P<increment3>[0-9a-zA-Z+=\-*/]*)\s*'
+	pattern = r'%s\((%s=%s)*;%s%s%s;%s\)\s*(?P<statements>[{])*' % (pattern_for, pattern_data_type_var_name, pattern_initval, pattern_var_cond, pattern_cond, pattern_boundary, pattern_increment)
 	match = re.search(pattern, l)
 	if match == None:
 		return None
 
-	datatype = match.group('datatype')
-	varname = match.group('varname')
+	# datatype  = match.group('datatype')
+	# varname = match.group('varname')
+
+	datatype_varname  = match.group('datatype_varname')
+	datatype_varname = datatype_varname.strip().split()
+	datatype = ""
+	print "-----HELLO-------%s-----------" % (datatype_varname)
+	varname = ""
+	if len(datatype_varname) > 0:
+		varname = datatype_varname[-1]
+		if len(datatype_varname) > 1:
+			datatype = ' '.join(datatype_varname[:-1])
+
 	initval = match.group('initval')
 	varcond = match.group('varcond')
 	cond = match.group('cond')
@@ -25,7 +39,7 @@ def parseForLoop(line):
 	inc1 = match.group("increment1")
 	inc2 = match.group("increment2")
 	inc3 = match.group("increment3")
-	paranthesis = match.group("paranthesis")
+	statements = match.group("statements")
 
 	inc = ""
 	if inc1 is not None:
@@ -35,7 +49,7 @@ def parseForLoop(line):
 			if inc3 is not None:
 				inc += inc3
 
-	return (datatype, varname, initval, varcond, cond, boundary, inc, paranthesis)
+	return (datatype, varname, initval, varcond, cond, boundary, inc, statements)
 
 
 def parsePragmaACC(line):

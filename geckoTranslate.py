@@ -51,7 +51,7 @@ class SourceFile(object):
 				if family not in ("X64", "X32", "NVIDIA", "UNIFIED_MEMORY"):
 					print "Line %d - Error in kind of locationtype - Unknown family (%s)" % (lineNumber, family)
 					exit(1)
-					
+
 			elif k[0] == "num_cores":
 				num_cores = k[1][:-1]
 			elif k[0] == "mem":
@@ -380,11 +380,15 @@ class SourceFile(object):
 		elif self.parsing_region_state == 2:
 			# we are dealing with for loop after OpenACC pragma and after our directive
 
+			print "=============HELLO 2========%s======" % (keywords)
 			line = ' '.join(keywords)
+                        print "=============HELLO 2========%s======" % (line)
 			for_loop = gREU.parseForLoop(line)
 			if for_loop is None:
-				print "Line: %d - Unrecognizable for-loop format." % (lineNumber)
-			
+				print "Line: %d - Unrecognizable for-loop format. [%s]" % (lineNumber, str(for_loop))
+				exit(1)
+
+			print "=====For LOOP: %s=========\n" % (str(for_loop))
 			(datatype, varname, initval, varcond, cond, boundary, inc, paranthesis) = for_loop
 
 			incremental_direction = None
@@ -461,6 +465,7 @@ class SourceFile(object):
 			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:
 				datatype = ""
+			print "========== %s - %s ============\n" % (datatype, varname)
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
 
 			if paranthesis is None:
@@ -597,7 +602,9 @@ class SourceFile(object):
 		return "\n"
 
 	def omitProblematicSpaces(self, line_to_process, lineNumber):
+                print "========HELLO 5========%s=======" % (line_to_process)
 		keywords = line_to_process.split()
+                print "========HELLO 4========%s=======" % (keywords)
 
 		i = 0
 		n = len(keywords)
@@ -635,6 +642,7 @@ class SourceFile(object):
 
 			i += 1
 
+		print "========HELLO 3========%s=======" % (finalKeywords)
 		return finalKeywords
 	
 	def processFile(self, overwrite=False):

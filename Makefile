@@ -40,7 +40,7 @@ CXXFLAGS_DEBUG=-std=c++11 -O0 -g -m64
 CXXFLAGS_RELEASE=-std=c++11 -O3 -m64
 
 
-# CXXFLAGS += -DINFO
+CXXFLAGS += -DINFO
 
 
 OUTPUT_EXE=output_test 
