@@ -380,15 +380,12 @@ class SourceFile(object):
 		elif self.parsing_region_state == 2:
 			# we are dealing with for loop after OpenACC pragma and after our directive
 
-			print "=============HELLO 2========%s======" % (keywords)
 			line = ' '.join(keywords)
-                        print "=============HELLO 2========%s======" % (line)
 			for_loop = gREU.parseForLoop(line)
 			if for_loop is None:
 				print "Line: %d - Unrecognizable for-loop format. [%s]" % (lineNumber, str(for_loop))
 				exit(1)
 
-			print "=====For LOOP: %s=========\n" % (str(for_loop))
 			(datatype, varname, initval, varcond, cond, boundary, inc, paranthesis) = for_loop
 
 			incremental_direction = None
@@ -465,7 +462,7 @@ class SourceFile(object):
 			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:
 				datatype = ""
-			print "========== %s - %s ============\n" % (datatype, varname)
+
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
 
 			if paranthesis is None:
@@ -602,9 +599,7 @@ class SourceFile(object):
 		return "\n"
 
 	def omitProblematicSpaces(self, line_to_process, lineNumber):
-                print "========HELLO 5========%s=======" % (line_to_process)
 		keywords = line_to_process.split()
-                print "========HELLO 4========%s=======" % (keywords)
 
 		i = 0
 		n = len(keywords)
@@ -633,7 +628,7 @@ class SourceFile(object):
 						print "Paranthesis do not match at line %d" % (lineNumber)
 						exit(1)
 
-					kw += keywords[i]
+					kw += (keywords[i] + " ")
 					countOpen = 0
 
 
@@ -642,7 +637,6 @@ class SourceFile(object):
 
 			i += 1
 
-		print "========HELLO 3========%s=======" % (finalKeywords)
 		return finalKeywords
 	
 	def processFile(self, overwrite=False):
@@ -685,14 +679,14 @@ class SourceFile(object):
 			if line_to_process_list[0] == "#pragma" and line_to_process_list[1] == pragma_keyword:
 				if preserveOriginalCodeAsComment:
 					outputLines.append("//%s\n" % (line_to_process))
-				line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
-				# outputLines.append(self.processLine(' '.join(line_to_process), i+1))
+				# line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
+				## outputLines.append(self.processLine(' '.join(line_to_process), i+1))
 				outputLines.append(self.processLine(line_to_process_list, i+1, real_line))
 			elif self.parsing_region_state in [1, 2]:
 				if preserveOriginalCodeAsComment:
 					outputLines.append("//%s\n" % (line_to_process))
-				line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
-				# outputLines.append(self.processLine(' '.join(line_to_process), i+1))
+				# line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
+				## outputLines.append(self.processLine(' '.join(line_to_process), i+1))
 				outputLines.append(self.processLine(line_to_process_list, i+1, real_line))
 			else:
 				outputLines.append(real_line)

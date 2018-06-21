@@ -25,7 +25,6 @@ def parseForLoop(line):
 	datatype_varname  = match.group('datatype_varname')
 	datatype_varname = datatype_varname.strip().split()
 	datatype = ""
-	print "-----HELLO-------%s-----------" % (datatype_varname)
 	varname = ""
 	if len(datatype_varname) > 0:
 		varname = datatype_varname[-1]
