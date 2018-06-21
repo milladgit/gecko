@@ -1,6 +1,8 @@
 
 import os,sys,re,glob,atexit
 import geckoREUtilities as gREU
+import geckoFileUtils as gFU
+
 
 pragma_keyword 				= "gecko"
 pragma_prefix  				= "GECKO"
@@ -745,6 +747,8 @@ def prune_file_list(file_list):
 def forward_conversion(folder):
 	global do_not_remove
 
+	folder = os.path.relpath(folder)
+
 	if os.path.exists("%s/%s" % (folder, gecko_orig_folder_name)) or os.path.exists("%s/%s" % (folder, gecko_conv_folder_name)):
 		do_not_remove = True
 		print "\n\nPlease revert back the changes with backward command.\n"
@@ -776,6 +780,9 @@ def forward_conversion(folder):
 
 def backward_conversion(folder):
 	global do_not_remove
+
+	folder = os.path.relpath(folder)
+
 	if not os.path.exists("%s/%s" % (folder, gecko_orig_folder_name)):
 		do_not_remove = True
 		print "\n\nPlease apply the changes with forward command.\n"
@@ -797,13 +804,6 @@ def backward_conversion(folder):
 # 		return
 # 	os.system("rm -rf ./%s" % (gecko_orig_folder_name))
 # 	os.system("rm -rf ./%s" % (gecko_conv_folder_name))
-
-
-def convert_based_on_actions(action, folder):
-	if action == "forward":
-		forward_conversion(folder)
-	elif action == "backward":
-		backward_conversion(folder)
 
 
 
@@ -830,13 +830,29 @@ def main():
 
 		folder = sys.argv[2]
 		if folder == "":
-			usage()
-			exit(1)
+			folder = "./"
+
+		folder = os.path.abspath(folder)
 		if not os.path.exists(folder):
 			usage()
 			exit(1)
 
-		convert_based_on_actions(action, folder)
+		folder_list = []
+		gFU.findFolders(folder,folder_list)
+		folder_list.append(folder)
+
+		if action == "forward":
+			for folder in folder_list:
+				if "__GECKO__" in folder:
+					continue
+				os.chdir(folder)
+				forward_conversion(folder)
+		elif action == "backward":
+			for folder in folder_list:
+				if "__GECKO__" in folder:
+					continue
+				os.chdir(folder)
+				backward_conversion(folder)
 
 		return
 
