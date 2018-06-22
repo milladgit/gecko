@@ -461,11 +461,12 @@ class SourceFile(object):
 			line += "int devIndex = omp_get_thread_num();\n"
 			line += "geckoBindLocationToThread(devIndex, dev[devIndex]);\n"
 			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
+			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:
 				datatype = ""
 
-			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLoopIndex[devIndex]", varcond, cond, "endLoopIndex[devIndex]", inc)
+			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLI", varcond, cond, "endLI", inc)
 
 			if paranthesis is None:
 				line += "\n"
