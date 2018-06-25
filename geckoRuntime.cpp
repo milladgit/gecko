@@ -727,7 +727,7 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 		for (int i = 0; i < loc_count; i++) {
 			size_t count_in_bytes = (endIndex[i] - beginIndex[i]) * datasize;
 			void *ptr = addr + i * beginIndex[i] * datasize;
-			if (loc_list[i]->getLocationType() == GECKO_NVIDIA)
+			if (loc_list[i]->getLocationType().type == GECKO_NVIDIA)
 				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, loc_list[i]->getLocationIndex());
 			else
 				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
