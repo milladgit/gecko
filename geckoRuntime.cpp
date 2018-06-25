@@ -693,7 +693,7 @@ GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArch
 			output_type = type;
 		} else {
 			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
-					__FILE__, __LINE__, var.loc.c_str());
+					__FILE__, __LINE__, node->getLocationName().c_str());
 			exit(1);
 		}
 	} else {
@@ -718,7 +718,7 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 			continue;
 		GeckoMemory &variable = iter->second;
 		GeckoLocation *location = GeckoLocation::find(variable.loc);
-		if (location->getLocationType() != GECKO_UNIFIED_MEMORY)
+		if (location->getLocationType().type != GECKO_UNIFIED_MEMORY)
 			continue;
 
 		size_t &datasize = variable.dataSize;
@@ -877,7 +877,7 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
-                       GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void *var_list) {
+                       GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
 	geckoInit();
 
 #ifdef INFO
@@ -1006,9 +1006,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		}
 	}
 
-
 	for(int i=0;i<var_count;i++)
-		geckoMemoryDistribution(*devCount, dev, var_list[i], beginLoopIndex, endLoopIndex);
+		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
 
 	*out_dev = dev;
 	*out_beginLoopIndex = beginLoopIndex;
