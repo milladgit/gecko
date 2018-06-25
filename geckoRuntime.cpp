@@ -681,21 +681,16 @@ bool geckoAreAllChildrenCPU(GeckoLocation *node) {
 }
 
 inline
-GeckoError geckoMemoryAllocationAlgorithm(GeckoMemory &var) {
-	geckoInit();
-
+GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArchTypeEnum &output_type) {
 /*
  * Following the memory allocation in the paper.
  */
 
-	void *addr = NULL;
-
-	GeckoLocation *node = GeckoLocation::find(var.loc);
 	if(node->getChildren().size() == 0) {
 //		This node is a leaf node!
 		const GeckoLocationArchTypeEnum type = node->getLocationType().type;
 		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_NVIDIA) {
-			addr = geckoAllocateMemory(type, &var);
+			output_type = type;
 		} else {
 			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for allocation. Location: %s\n",
 					__FILE__, __LINE__, var.loc.c_str());
@@ -704,12 +699,41 @@ GeckoError geckoMemoryAllocationAlgorithm(GeckoMemory &var) {
 	} else {
 		const bool areAllCPUs = geckoAreAllChildrenCPU(node);
 		if(areAllCPUs)
-			addr = geckoAllocateMemory(GECKO_X64, &var);
+			output_type = GECKO_X64;
 		else
-			addr = geckoAllocateMemory(GECKO_UNIFIED_MEMORY, &var);
+			output_type = GECKO_UNIFIED_MEMORY;
 	}
 
-	var.address = addr;
+	return GECKO_SUCCESS;
+}
+
+inline
+GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int var_count, void **var_list,
+								   int *beginIndex, int *endIndex) {
+
+#ifdef CUDA_ENABLED
+	for(int var_index=0;var_index < var_count;var_index++) {
+		auto iter = geckoMemoryTable.find(var_list[var_index]);
+		if(iter == geckoMemoryTable.end())
+			continue;
+		GeckoMemory &variable = iter->second;
+		GeckoLocation *location = GeckoLocation::find(variable.loc);
+		if (location->getLocationType() != GECKO_UNIFIED_MEMORY)
+			continue;
+
+		size_t &datasize = variable.dataSize;
+		void *addr = variable.address;
+
+		for (int i = 0; i < loc_count; i++) {
+			size_t count_in_bytes = (endIndex[i] - beginIndex[i]) * datasize;
+			void *ptr = addr + i * beginIndex[i] * datasize;
+			if (loc_list[i]->getLocationType() == GECKO_NVIDIA)
+				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, loc_list[i]->getLocationIndex());
+			else
+				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+		}
+	}
+#endif
 
 	return GECKO_SUCCESS;
 }
@@ -728,7 +752,10 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 	}
 	variable.loc = string(location);
 
-	geckoMemoryAllocationAlgorithm(variable);
+	GeckoLocationArchTypeEnum type;
+	geckoMemoryAllocationAlgorithm(pLocation, type);
+
+	geckoAllocateMemory(type, &variable);
 
 	geckoMemoryTable[variable.address] = variable;
 
@@ -850,7 +877,7 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
-                       GeckoLocation ***out_dev, int ranges_count, int *ranges) {
+                       GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void *var_list) {
 	geckoInit();
 
 #ifdef INFO
@@ -980,6 +1007,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	}
 
 
+	for(int i=0;i<var_count;i++)
+		geckoMemoryDistribution(*devCount, dev, var_list[i], beginLoopIndex, endLoopIndex);
 
 	*out_dev = dev;
 	*out_beginLoopIndex = beginLoopIndex;
@@ -1023,11 +1052,13 @@ GeckoError geckoUnsetBusy(GeckoLocation *device) {
 	return GECKO_SUCCESS;
 }
 
-void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev) {
+void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev, void **var_list) {
 	free(beginLoopIndex);
 	free(endLoopIndex);
 
 	free(dev);
+
+	free(var_list);
 }
 
 GeckoError geckoWaitOnLocation(char *loc_at) {
@@ -1089,35 +1120,6 @@ void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *
 	}
 }
 
-inline
-GeckoError geckoMemoryFreeAlgorithm(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *node) {
-	geckoInit();
-
-/*
- * Following the memory allocation in the paper.
- */
-
-	if(node->getChildren().size() == 0) {
-//		This node is a leaf node!
-		GeckoLocationArchTypeEnum type = node->getLocationType().type;
-		if(type == GECKO_X32 || type == GECKO_X64 || type == GECKO_NVIDIA)
-			geckoFreeMemory(type, addr, node);
-		else {
-			fprintf(stderr, "===GECKO (%s:%d): Unrecognized location type for freeing memory. Location: %s\n",
-					__FILE__, __LINE__, node->getLocationName().c_str());
-		}
-	} else {
-		bool areAllCPUs = geckoAreAllChildrenCPU(node);
-		if(areAllCPUs) {
-			geckoFreeMemory(GECKO_X64, addr, node);
-		} else {
-			geckoFreeMemory(GECKO_UNIFIED_MEMORY, addr, node);
-		}
-	}
-
-	return GECKO_SUCCESS;
-}
-
 GeckoError geckoFree(void *ptr) {
 	auto iter = geckoMemoryTable.find(ptr);
 	if(iter == geckoMemoryTable.end())
@@ -1129,7 +1131,11 @@ GeckoError geckoFree(void *ptr) {
 		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc);
 		exit(1);
 	}
-	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
+//	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
+	GeckoLocationArchTypeEnum type;
+	geckoMemoryAllocationAlgorithm(g_loc, type);
+	geckoFreeMemory(type, ptr, g_loc);
+
 	geckoMemoryTable.erase(iter);
 
 	return GECKO_SUCCESS;

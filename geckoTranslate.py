@@ -351,6 +351,74 @@ class SourceFile(object):
 
 		return ""
 
+	def generateRangeLine(self):
+		range_line_begin = ""
+		range_line_end = ""
+
+		if self.exec_pol == '"range"':
+			if self.exec_pol_type == "array":
+				range_arr = self.exec_pol_option.split(',')
+				ranges_count = "%d" % (len(range_arr))
+				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+				range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+				for i, a in enumerate(range_arr):
+					range_line_begin += "ranges[%d] = %s;\n" % (i, a)
+				range_line_end = "free(ranges);\n"
+
+			elif self.exec_pol_type == "runtime":
+				arr = self.exec_pol_option.split(',')
+				ranges_count = arr[0]
+				range_name = arr[1]
+				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+				range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+
+		elif self.exec_pol == '"percentage"':
+			if self.exec_pol_type == "array":
+				range_arr = self.exec_pol_option.split(',')
+				ranges_count = "%d" % (len(range_arr))
+				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+				range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+				for i, a in enumerate(range_arr):
+					range_line_begin += "ranges[%d] = %s;\n" % (i, a)
+				range_line_end = "free(ranges);\n"
+
+			elif self.exec_pol_type == "runtime":
+				arr = self.exec_pol_option.split(',')
+				ranges_count = arr[0]
+				range_name = arr[1]
+				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
+				range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+		else:
+			range_line_begin = "int ranges_count = 0;\n"
+			range_line_begin += "int *ranges = NULL;\n"
+
+		return range_line_begin, range_line_end
+
+
+	def generateVarLine(self):
+		varList = self.var_list.split(",")
+		varList2 = []
+		for v in varList:
+			v = v.strip()
+			if v == "":
+				continue
+			varList2.append(v)
+
+		varList = varList2
+
+		var_line = ""
+		var_line += "int var_count = %d;\n" % (len(varList))
+		if len(varList) == 0:
+			var_line += "void **var_list = NULL;\n"
+		else:
+			var_line += "void **var_list = (void **) malloc(sizeof(void*) * var_count);\n"
+			var_line += "for(int __v_id=0;__v_id<var_count;__v_id++) {\n"
+			for v in varList:
+				var_line += "var_list[__v_id] = %s;\n" % (v)
+			var_line += "}\n"
+
+		return var_line
+
 
 	def parseRegionKernel(self, keywords, lineNumber):
 		if self.parsing_region_state == -1:
@@ -358,7 +426,7 @@ class SourceFile(object):
 
 			ret = ""
 			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
-			ret += "}\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev);\n}\n"
+			ret += "}\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n}\n"
 
 			self.parsing_region_state = 0
 
@@ -401,52 +469,21 @@ class SourceFile(object):
 			if incremental_direction is None:
 				print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
 
+
 			range_line_begin = ""
 			range_line_end = ""
-			if self.exec_pol == '"range"':
-				if self.exec_pol_type == "array":
-					range_arr = self.exec_pol_option.split(',')
-					ranges_count = "%d" % (len(range_arr))
-					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-					range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
-					for i, a in enumerate(range_arr):
-						range_line_begin += "ranges[%d] = %s;\n" % (i, a)
-					range_line_end = "free(ranges);\n"
+			range_line_begin, range_line_end = self.generateRangeLine()
 
-				elif self.exec_pol_type == "runtime":
-					arr = self.exec_pol_option.split(',')
-					ranges_count = arr[0]
-					range_name = arr[1]
-					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-					range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
 
-			elif self.exec_pol == '"percentage"':
-				if self.exec_pol_type == "array":
-					range_arr = self.exec_pol_option.split(',')
-					ranges_count = "%d" % (len(range_arr))
-					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-					range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
-					for i, a in enumerate(range_arr):
-						range_line_begin += "ranges[%d] = %s;\n" % (i, a)
-					range_line_end = "free(ranges);\n"
-
-				elif self.exec_pol_type == "runtime":
-					arr = self.exec_pol_option.split(',')
-					ranges_count = arr[0]
-					range_name = arr[1]
-					range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-					range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
-			else:
-				range_line_begin = "int ranges_count = 0;\n"
-				range_line_begin += "int *ranges = NULL;\n"
-
+			var_list_line = self.generateVarLine()
 
 
 			line = '{\n'
 			line += "int *beginLoopIndex, *endLoopIndex, jobCount, devCount, devIndex;\n"
 			line += "GeckoLocation **dev;\n"
 			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
-			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges);\n' \
+			line += var_list_line
+			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
 					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
@@ -462,7 +499,8 @@ class SourceFile(object):
 			line += "geckoBindLocationToThread(devIndex, dev[devIndex]);\n"
 			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
-			line += "%s deviceptr(%s) async(dev[devIndex]->getAsyncID())\n" % (self.pragmaForRegion, self.var_list)
+			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
+			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:
 				datatype = ""
 

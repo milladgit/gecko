@@ -43,33 +43,33 @@
 using namespace std;
 
 
-GeckoError	geckoInit();
-void 		geckoCleanup();
+GeckoError 	geckoInit();
+void 	   	geckoCleanup();
 
-GeckoError  geckoLoadConfigWithFile(char *filename);
-GeckoError  geckoLoadConfigWithEnv();
+GeckoError 	geckoLoadConfigWithFile(char *filename);
+GeckoError 	geckoLoadConfigWithEnv();
 
-GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
+GeckoError 	geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
                                     int numCores, const char *mem_size, const char *mem_type);
-GeckoError geckoLocationDeclare(const char *name, const char *_type, int all, int start, int count);
-GeckoError geckoHierarchyDeclare(char operation, const char *child_name, const char *parent, int all, int start,
+GeckoError 	geckoLocationDeclare(const char *name, const char *_type, int all, int start, int count);
+GeckoError 	geckoHierarchyDeclare(char operation, const char *child_name, const char *parent, int all, int start,
 								 int count);
-GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location);
+GeckoError 	geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location);
 
-GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
+GeckoError 	geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
                        int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
-                       GeckoLocation ***out_dev, int ranges_count, int *ranges);
-GeckoError geckoSetDevice(GeckoLocation *device);
-GeckoError geckoSetBusy(GeckoLocation *device);
-GeckoError geckoUnsetBusy(GeckoLocation *device);
-void 	   geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev);
+                       GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void *var_list);
+GeckoError 	geckoSetDevice(GeckoLocation *device);
+GeckoError 	geckoSetBusy(GeckoLocation *device);
+GeckoError 	geckoUnsetBusy(GeckoLocation *device);
+void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev, void **var_list);
 
-GeckoError geckoWaitOnLocation(char *locationName);
+GeckoError 	geckoWaitOnLocation(char *locationName);
 
-GeckoError geckoFree(void *ptr);
+GeckoError 	geckoFree(void *ptr);
 
-GeckoError geckoBindLocationToThread(int threadID, GeckoLocation *loc);
+GeckoError 	geckoBindLocationToThread(int threadID, GeckoLocation *loc);
 
-void geckoDrawHierarchyTree(char *rootNode, char *filename);
+void 		geckoDrawHierarchyTree(char *rootNode, char *filename);
 
 #endif
