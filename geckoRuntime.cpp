@@ -446,7 +446,7 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		}
 		#endif
 
-		int index;
+		int index = -1;
 		if(locObj.type == GECKO_X32 || locObj.type == GECKO_X64) {
 			index = geckoX64DeviceIndex++;
 		}
@@ -658,6 +658,8 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 					geckoGetLocationTypeName(type));
 			exit(1);
 	}
+
+	var->address = addr;
 
 	return addr;
 }
