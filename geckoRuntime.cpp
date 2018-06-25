@@ -729,10 +729,14 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 		for (int i = 0; i < loc_count; i++) {
 			size_t count_in_bytes = (endIndex[i] - beginIndex[i]) * datasize;
 			void *ptr = addr + i * beginIndex[i] * datasize;
-			if (loc_list[i]->getLocationType().type == GECKO_NVIDIA)
-				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, loc_list[i]->getLocationIndex());
-			else
-				cudaMemAdvise(addr, count_in_bytes, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+			if (loc_list[i]->getLocationType().type == GECKO_NVIDIA) {
+				int dstDevice = loc_list[i]->getLocationIndex();
+				int asyncID = loc_list[i]->getAsyncID();
+				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetPreferredLocation, dstDevice);
+//				cudaMemPrefetchAsync(ptr, count_in_bytes, dstDevice, (cudaStream_t*) acc_get_cuda_stream(asyncID));
+			} else {
+				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+			}
 		}
 	}
 #endif
