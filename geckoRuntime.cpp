@@ -883,7 +883,8 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
-                       int incremental_direction, int *devCount, int **out_beginLoopIndex, int **out_endLoopIndex,
+                       int incremental_direction, int has_equal_sign, int *devCount,
+					   int **out_beginLoopIndex, int **out_endLoopIndex,
                        GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
 	geckoInit();
 
@@ -899,7 +900,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		exit(1);
 	}
 
-	int totalIterations = boundary - initval;
+	int totalIterations = boundary - initval + has_equal_sign * (incremental_direction ? 1 : -1);
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: TotalIterations: %d\n", totalIterations);
@@ -926,9 +927,12 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	if(strcmp(exec_pol, "static") == 0) {
 		geckoAcquireLocations(children_names);
 
-		int start = initval;
+		int start = initval, end;
 		for(int i=0;i<*devCount;i++) {
-			int end = (incremental_direction ? start + children_names[i].iterationCount : start - children_names[i].iterationCount);
+			if(i == *devCount - 1)
+				end = boundary;
+			else
+				end = (incremental_direction ? start + children_names[i].iterationCount : start - children_names[i].iterationCount);
 #ifdef INFO
 			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 				   children_names[i].iterationCount);
@@ -945,9 +949,10 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		int start, end, delta = totalIterations / (*devCount);
 		start = initval;
 		for(int i=0;i<*devCount;i++) {
-			end = (incremental_direction ? start + delta : start - delta);
 			if(i == *devCount-1)
 				end = boundary;
+			else
+				end = (incremental_direction ? start + delta : start - delta);
 #ifdef INFO
 			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 				   (end - start) * (incremental_direction ? 1 : -1)  );
@@ -1002,9 +1007,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 //			if(j == ranges_count-1)
 //				end = boundary;
 #ifdef INFO
-			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
+			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 			       (end - start) * (incremental_direction ? 1 : -1)  );
-			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
 #endif
 			beginLoopIndex[j] = start;
 			endLoopIndex[j] = end;
@@ -1013,6 +1018,11 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		}
 	}
 
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Advising memory allocation at location %s.\n", loc_at);
+#endif
+	
 	for(int i=0;i<var_count;i++)
 		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
 

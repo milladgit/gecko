@@ -466,6 +466,10 @@ class SourceFile(object):
 				if c in inc:
 					incremental_direction = 0
 
+			has_equal_sign = 0
+			if "=" in cond:
+				has_equal_sign = 1
+
 			if incremental_direction is None:
 				print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
 
@@ -483,8 +487,8 @@ class SourceFile(object):
 			line += "GeckoLocation **dev;\n"
 			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
 			line += var_list_line
-			line += '%sRegion(%s, %s, %s, %s, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
-					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction)
+			line += '%sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
+					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign)
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
 			if self.exec_pol in ['"range"', '"percentage"']:
