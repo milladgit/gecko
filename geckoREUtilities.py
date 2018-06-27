@@ -9,10 +9,10 @@ def parseForLoop(line):
 	# pattern_data_type_2 = r'((?P<datatype2>\w+))*'
 	pattern_data_type_var_name = r'((?P<datatype_varname>[a-zA-Z0-9_ ]+)\s*)*'
 	#pattern_var_name = r'(?P<varname>\w+)\s*'
-	pattern_initval = r'\s*(?P<initval>\w+)\s*'
-	pattern_var_cond = r'\s*(?P<varcond>\w+)\s*'
+	pattern_initval = r'\s*(?P<initval>[0-9a-zA-Z_+=\-*/]+)\s*'
+	pattern_var_cond = r'\s*(?P<varcond>[_.\w]+)\s*'
 	pattern_cond = r'(?P<cond>[>=<]+)\s*'
-	pattern_boundary = r'(?P<boundary>[\w_+=\-*/]+)\s*'
+	pattern_boundary = r'(?P<boundary>[\w+_.\-*/]+)\s*'
 	pattern_increment = r'\s*(?P<increment1>[0-9a-zA-Z_+=\-*/]*)\s*(?P<increment2>[0-9a-zA-Z+=\-*/]*)\s*(?P<increment3>[0-9a-zA-Z+=\-*/]*)\s*'
 	pattern = r'%s\((%s=%s)*;%s%s%s;%s\)\s*(?P<statements>[{])*' % (pattern_for, pattern_data_type_var_name, pattern_initval, pattern_var_cond, pattern_cond, pattern_boundary, pattern_increment)
 	match = re.search(pattern, l)

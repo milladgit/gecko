@@ -14,7 +14,7 @@ GECKO_LIB_FILE=$(LIB_DIR)/libgecko.a
 CUDA_HOME = /usr/local/cuda-9.0
 
 ENABLE_CUDA = ON
-ENABLE_DEBUG = OFF
+ENABLE_DEBUG = ON
 
 LDFLAGS=-lm
 
@@ -40,7 +40,9 @@ CXXFLAGS_DEBUG=-std=c++11 -O0 -g -m64
 CXXFLAGS_RELEASE=-std=c++11 -O3 -m64
 
 
+ifeq ($(ENABLE_DEBUG), ON)
 CXXFLAGS += -DINFO
+endif
 
 
 OUTPUT_EXE=output_test 

@@ -190,11 +190,10 @@ class SourceFile(object):
 	def processMemory(self, keywords, lineNumber):
 		name = "-"
 		_type = ""
-		loc = ""
-		distribute = False
-		duplicate = False
+		loc = '""'
 		tile = ""
 		varToFree = ""
+		distance = ""
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
@@ -204,6 +203,8 @@ class SourceFile(object):
 				_type = k[1][:-1]
 			elif k[0] == "location":
 				loc = k[1][:-1]
+			elif k[0] == "distance":
+				distance = k[1][:-1]
 			elif k[0] == "free":
 				varToFree = k[1][:-1]
 
@@ -214,19 +215,10 @@ class SourceFile(object):
 			line = "%sFree(%s);\n" % (pragma_prefix_funcname, varToFree)
 			return line
 
-		if duplicate and distribute and tile:
-			print "Line %d - Cannot choose <duplicate>, <distribute>, <tile> at the same time!" % (lineNumber)
-			exit(1)
-
-		# if not duplicate and not distribute and not tile:
-		# 	distribute = True
-
-		# variable_create = False
 		name_list = name.strip().split("[")
 		if len(name_list) == 1:
 			name = name_list[0]
 			count = "1"
-			# variable_create = True
 		elif len(name_list) != 2:
 			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
 			exit(1)	
@@ -239,37 +231,17 @@ class SourceFile(object):
 				exit(1)
 			count = prop[1]
 
-
-		tileDict = dict()
-		tile = tile.split(",")
-		for t in tile:
-			t = t.strip()
-			if t=="" or len(t) == 0:
-				break
-			t = t.split("[")
-			t[-1] = t[-1][:-1]
-			tileDict[t[0]] = t[1]
-
-		# type_of_distribution = "CHAMELEON_DISTRIB_NONE"
-		# if distribute:
-		# 	type_of_distribution = "CHAMELEON_DISTRIB_DISTRIBUTE"
-		# elif duplicate:
-		# 	type_of_distribution = "CHAMELEON_DISTRIB_DUPLICATE"
-		# elif len(tileDict) > 0:
-		# 	type_of_distribution = "CHAMELEON_DISTRIB_TILE"
-		# else:
-		# 	type_of_distribution = "CHAMELEON_DISTRIB_UNKNOWN"
+		distance = distance.upper()
+		if distance == "":
+			distance = "GECKO_DISTANCE_NOT_SET"
+		elif distance in ["NEAR", "FAR"]:
+			distance = "GECKO_DISTANCE_%s" % (distance)
+		else:
+			distance = "GECKO_DISTANCE_UNKNOWN"
 
 
-		line = ""
-		# if not variable_create:
-		# 	line = '%sVariableDeclare((void**)&%s, sizeof(%s), %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc)
-		line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc)
 
-		# if len(tileDict) > 0:
-		# 	for machine, indexes in tileDict.items():
-		# 		ind = indexes.split(":")
-		# 		line += '%sVariableTile(%s, "%s", %s, %s);\n' % (pragma_prefix_funcname, name, machine, ind[0], ind[1])
+		line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance)
 
 		return line
 
@@ -426,7 +398,9 @@ class SourceFile(object):
 
 			ret = ""
 			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
-			ret += "}\ngeckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n}\n"
+			ret += "} //end of OpenMP pragma \n"
+			ret += "} // end of checking: err == GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
+			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n}\n"
 
 			self.parsing_region_state = 0
 
@@ -457,6 +431,7 @@ class SourceFile(object):
 				exit(1)
 
 			(datatype, varname, initval, varcond, cond, boundary, inc, paranthesis) = for_loop
+			# print "for_loop:",for_loop
 
 			incremental_direction = None
 			for c in ["++", "+=", "*="]:
@@ -466,12 +441,16 @@ class SourceFile(object):
 				if c in inc:
 					incremental_direction = 0
 
+
+			if incremental_direction is None:
+				print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
+				exit(1)
+
+
 			has_equal_sign = 0
 			if "=" in cond:
 				has_equal_sign = 1
 
-			if incremental_direction is None:
-				print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
 
 
 			range_line_begin = ""
@@ -483,11 +462,11 @@ class SourceFile(object):
 
 
 			line = '{\n'
-			line += "int *beginLoopIndex, *endLoopIndex, jobCount, devCount, devIndex;\n"
-			line += "GeckoLocation **dev;\n"
+			line += "int *beginLoopIndex=NULL, *endLoopIndex=NULL, jobCount, devCount, devIndex;\n"
+			line += "GeckoLocation **dev = NULL;\n"
 			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
 			line += var_list_line
-			line += '%sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
+			line += 'GeckoError err = %sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
 					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign)
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
@@ -496,6 +475,7 @@ class SourceFile(object):
 			else:
 				line += "jobCount = devCount;\n"
 
+			line += "if(err != GECKO_ERR_TOTAL_ITERATIONS_ZERO) {\n"
 			# line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
 			line += "#pragma omp parallel num_threads(jobCount)\n"
 			line += "{\n"

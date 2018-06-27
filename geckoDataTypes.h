@@ -21,6 +21,7 @@ typedef enum {
 typedef enum {
 	GECKO_SUCCESS = 0,
 	GECKO_ERR_FAILED,
+	GECKO_ERR_TOTAL_ITERATIONS_ZERO,
 	GECKO_ERR_UNKNOWN,
 	GECKO_ERR_LEN
 } GeckoError;
@@ -43,13 +44,22 @@ typedef enum {
 	GECKO_DISTRIB_LEN
 } GeckoMemoryDistribPolicy;
 
+//typedef enum {
+//	GECKO_EXEC_POL_AT = 0,
+//	GECKO_EXEC_POL_ATANY,
+//	GECKO_EXEC_POL_ATEACH,
+//	GECKO_EXEC_POL_UNKNOWN,
+//	GECKO_EXEC_POL_LEN
+//} GeckoExecutionPolicy;
+//
+
 typedef enum {
-	GECKO_EXEC_POL_AT = 0,
-	GECKO_EXEC_POL_ATANY,
-	GECKO_EXEC_POL_ATEACH,
-	GECKO_EXEC_POL_UNKNOWN,
-	GECKO_EXEC_POL_LEN
-} GeckoExecutionPolicy;
+	GECKO_DISTANCE_NOT_SET = 0,
+	GECKO_DISTANCE_NEAR,
+	GECKO_DISTANCE_FAR,
+	GECKO_DISTANCE_UNKNOWN,
+	GECKO_DISTANCE_LEN
+} GeckoDistanceTypeEnum;
 
 
 //typedef struct {
@@ -72,6 +82,7 @@ public:
 	GeckoMemoryDistribPolicy distributionType;
 
 	bool allocated;
+	GeckoDistanceTypeEnum distance;
 
 	string originatedFrom;      // Name of the location that variable was originated from
 
@@ -80,7 +91,8 @@ public:
 			dataSize(0),
 			count(0),
 			distributionType(GECKO_DISTRIB_NONE),
-			allocated(false)
+			allocated(false),
+			distance(GECKO_DISTANCE_NOT_SET)
 	{};
 };
 

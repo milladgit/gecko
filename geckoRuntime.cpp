@@ -352,8 +352,7 @@ GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum device
 	d.mem_type = (char*)mem_type;
 	listOfAvailLocationTypes[string(name)] = d;
 	#ifdef INFO
-	fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s (%d) \n", name,
-	        geckoGetLocationTypeName(deviceType), deviceType);
+	fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s \n", name, geckoGetLocationTypeName(deviceType));
 	#endif
 	return GECKO_SUCCESS;
 }
@@ -660,6 +659,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
 	}
 
 	var->address = addr;
+	var->allocated = true;
 
 	return addr;
 }
@@ -745,24 +745,32 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 	return GECKO_SUCCESS;
 }
 
-GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location) {
+GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance) {
 	geckoInit();
+
+	if(distance == GECKO_DISTANCE_UNKNOWN) {
+		fprintf(stderr, "===GECKO: Distance at location (%s) is unknown (GECKO_DISTANCE_UNKNOWN).\n", location);
+		exit(1);
+	}
 
 	GeckoMemory variable;
 
 	variable.dataSize = dataSize;
 	variable.count = count;
-	GeckoLocation *const pLocation = GeckoLocation::find(string(location));
+	variable.loc = string(location);
+	GeckoLocation *const pLocation = GeckoLocation::find(variable.loc);
 	if(pLocation == NULL) {
 		fprintf(stderr, "===GECKO %s (%d): Unable to find the location (%s)\n", __FILE__, __LINE__, location);
 		exit(1);
 	}
-	variable.loc = string(location);
 
-	GeckoLocationArchTypeEnum type;
-	geckoMemoryAllocationAlgorithm(pLocation, type);
-
-	geckoAllocateMemory(type, &variable);
+//	variable.distance = distance;
+//
+//	if(distance == GECKO_DISTANCE_NOT_SET) {
+		GeckoLocationArchTypeEnum type;
+		geckoMemoryAllocationAlgorithm(pLocation, type);
+		geckoAllocateMemory(type, &variable);
+//	}
 
 	geckoMemoryTable[variable.address] = variable;
 
@@ -907,7 +915,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 
 	if(totalIterations == 0)
-		return GECKO_SUCCESS;
+		return GECKO_ERR_TOTAL_ITERATIONS_ZERO;
 
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
@@ -922,7 +930,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	int *endLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * loop_index_count);
 
-
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Total device count for distribution of iterations: %d\n", *devCount);
+#endif
 
 	if(strcmp(exec_pol, "static") == 0) {
 		geckoAcquireLocations(children_names);
@@ -934,9 +944,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			else
 				end = (incremental_direction ? start + children_names[i].iterationCount : start - children_names[i].iterationCount);
 #ifdef INFO
-			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
+			fprintf(stderr, "===GECKO:\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 				   children_names[i].iterationCount);
-			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
 #endif
 			beginLoopIndex[i] = start;
 			endLoopIndex[i] = end;
@@ -1019,10 +1029,34 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	}
 
 
+	/*
+	 * Allocating distance-based variables
+	 */
+//	for(int i=0;i<var_count;i++) {
+//		auto iter = geckoMemoryTable.find(var_list[i]);
+//		if(iter == geckoMemoryTable.end())
+//			continue;
+//		GeckoMemory &variable = iter->second;
+//		if(!variable.allocated)
+//			continue;
+//		GeckoLocation *pLocation;
+//		pLocation = GeckoLocation::find(variable.loc);
+//		if(variable.distance == GECKO_DISTANCE_NEAR) {
+//			pLocation = location;
+//			variable.loc = string(loc_at);
+//		} else if(variable.distance == GECKO_DISTANCE_FAR) {
+//			pLocation = GeckoLocation::findRoot();
+//			variable.loc = pLocation->getLocationName();
+//		}
+//		GeckoLocationArchTypeEnum type;
+//		geckoMemoryAllocationAlgorithm(pLocation, type);
+//		geckoAllocateMemory(type, &variable);
+//	}
+
+
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Advising memory allocation at location %s.\n", loc_at);
 #endif
-	
 	for(int i=0;i<var_count;i++)
 		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
 
@@ -1069,12 +1103,16 @@ GeckoError geckoUnsetBusy(GeckoLocation *device) {
 }
 
 void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev, void **var_list) {
-	free(beginLoopIndex);
-	free(endLoopIndex);
+	if(beginLoopIndex)
+		free(beginLoopIndex);
+	if(endLoopIndex)
+		free(endLoopIndex);
 
-	free(dev);
+	if(dev)
+		free(dev);
 
-	free(var_list);
+	if(var_list)
+		free(var_list);
 }
 
 GeckoError geckoWaitOnLocation(char *loc_at) {
@@ -1090,19 +1128,36 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, 0);
 	int devCount = children_names.size();
+	if(devCount == 0)
+		return GECKO_SUCCESS;
 
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Begin to wait on %s - Number of children to wait on: %d\n", loc_at, devCount);
+#endif
 #pragma omp parallel num_threads(devCount)
 //	for(int devIndex=0;devIndex<devCount;devIndex++)
 	{
 		int tid = omp_get_thread_num();
 		GeckoLocation *loc = GeckoLocation::find(geckoThreadDeviceMap[tid]);
+#ifdef INFO
+		if(loc == NULL) fprintf(stderr, "===GECKO: Unable to find the location associated to thread ID: %d\n", tid);
+#endif
 		if(loc != NULL) {
 			geckoSetDevice(loc);
 			int async_id = loc->getAsyncID();
+#ifdef INFO
+			fprintf(stderr, "===GECKO: Waiting on location %s with asyncID %d on thread %d.\n", loc->getLocationName().c_str(), async_id, tid); fflush(stderr);
+#endif
 #pragma acc wait(async_id)
+#ifdef INFO
+			fprintf(stderr, "===GECKO: Waiting on location %s with asyncID %d on thread %d - Done.\n", loc->getLocationName().c_str(), async_id, tid); fflush(stderr);
+#endif
 			geckoUnsetBusy(loc);
 		}
 	}
+#ifdef INFO
+	fprintf(stderr, "===GECKO: End of wait on %s - Number of children to wait on: %d\n", loc_at, devCount);
+#endif
 
 	return GECKO_SUCCESS;
 }
@@ -1151,6 +1206,9 @@ GeckoError geckoFree(void *ptr) {
 	GeckoLocationArchTypeEnum type;
 	geckoMemoryAllocationAlgorithm(g_loc, type);
 	geckoFreeMemory(type, ptr, g_loc);
+
+	iter->second.address = NULL;
+	iter->second.allocated = false;
 
 	geckoMemoryTable.erase(iter);
 

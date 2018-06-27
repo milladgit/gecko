@@ -32,6 +32,8 @@ int main() {
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(W[0:N]) type(double) location("LocA") 
 
+	// #pragma gecko memory allocate(T[0:N]) type(double) distance(near)
+
 
 	for (int i = 0; i<N; i++) {
 		Z[i] = 0.0;
@@ -97,11 +99,11 @@ int main() {
 
 
 	printf("Checking...\n");
-	// for(int i=0;i<N;i++) {
-	// 	if(Z[i] != (coeff)) {
-	// 		printf("Error in index: %d\n", i);
-	// 	}
-	// }
+	for(int i=0;i<N;i++) {
+		if(Z[i] != (2*coeff)) {
+			printf("Error in index: %d\n", i);
+		}
+	}
 	printf("Checking...Done\n");
 
 
