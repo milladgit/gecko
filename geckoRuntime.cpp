@@ -1068,12 +1068,13 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 }
 
 GeckoError geckoSetDevice(GeckoLocation *device) {
-#ifdef INFO
-	fprintf(stderr, "===GECKO: Setting device to %s\n", device->getLocationName().c_str());
-#endif
-
 
 	GeckoLocationArchTypeEnum loc_type = device->getLocationType().type;
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Setting device to %s - loctype: %s - location index: %d\n", device->getLocationName().c_str(), geckoGetLocationTypeName(loc_type), device->getLocationIndex());
+#endif
+
 	if(loc_type == GECKO_NVIDIA)
 		acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
 	else if(loc_type == GECKO_X64 || loc_type == GECKO_X32)
