@@ -11,10 +11,10 @@ GECKO_FILES=geckoRuntime.cpp geckoHierarchicalTree.cpp
 GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
 GECKO_LIB_FILE=$(LIB_DIR)/libgecko.a
 
-CUDA_HOME = /usr/local/cuda-9.0
+CUDA_HOME?=/usr/local/cuda-9.0
 
 ENABLE_CUDA = ON
-ENABLE_DEBUG = ON
+ENABLE_DEBUG = OFF
 
 LDFLAGS=-lm
 

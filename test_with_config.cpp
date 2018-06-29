@@ -2,9 +2,9 @@
 #include <stdio.h>
 
 
-int main() {
+int main(int argc, char **argv) {
 
-	#pragma gecko config env 
+	#pragma gecko config env
  
 // 	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
 // 	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
@@ -27,9 +27,9 @@ int main() {
 	#pragma gecko draw root("LocA")
 
 
-	int N = 2000;
+	int N = atoi(argv[1]);
 	double *X, *Y, *Z;
-	#pragma gecko memory allocate(X[0:N]) type(double) location("LocN") 
+	#pragma gecko memory allocate(X[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocG") 
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 
@@ -83,7 +83,7 @@ int main() {
 	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 	#pragma acc parallel loop 
 	for (int i = a; i<b; i++) {
-		Z[i] = coeff;
+		Z[i] = coeff * i;
 	}
 	#pragma gecko region end
 
@@ -92,16 +92,16 @@ int main() {
 	// #pragma acc wait
 
 
-
+#if 0
 	printf("Checking...\n");
 	for(int i=0;i<N;i++) {
-		if(Z[i] != (coeff)) {
+		if(Z[i] != (coeff*i)) {
 			printf("Error in index: %d\n", i);
 		}
 	}
 	printf("Checking...Done\n");
 
-
+#endif
 	printf("Hello World!\n");
 
 	#pragma gecko memory free(X)
