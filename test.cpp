@@ -85,7 +85,7 @@ int main() {
 		// #pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 		#pragma acc parallel loop present(Z)
 		for (int i = a; i<b; i++) {
-			Z[i] = (q+1) * coeff;
+			Z[i] = i * coeff;
 		}
 		#pragma gecko region end
 
@@ -99,9 +99,12 @@ int main() {
 
 
 	printf("Checking...\n");
+	int c = 0;
 	for(int i=0;i<N;i++) {
-		if(Z[i] != (2*coeff)) {
-			printf("Error in index: %d\n", i);
+		if(Z[i] != (i*coeff)) {
+			printf("Error in index: %d - V: %.2f\n", i, Z[i]);
+			c++;
+			if(c>=10) break;
 		}
 	}
 	printf("Checking...Done\n");

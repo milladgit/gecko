@@ -3,6 +3,9 @@
 #include <algorithm>
 
 unordered_map<string, GeckoLocation*> GeckoLocation::geckoListOfAllNodes;
+vector<GeckoLocation*> GeckoLocation::childrenInCategories[GECKO_DEVICE_LEN];
+bool GeckoLocation::treeHasBeenModified;
+vector<GeckoLocation*> GeckoLocation::finalChildListForThreads;
 
 GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj,
 							 int locIndex, int async_id) {
@@ -41,9 +44,9 @@ void GeckoLocation::removeChild(GeckoLocation *location) {
 
 	children.erase(iter);
 	
-	GeckoLocationArchTypeEnum type = location->getLocationType().type;
+	int type = (int) location->getLocationType().type;
 	vector<GeckoLocation *> &childCategory = childrenInCategories[type];
-	auto iter2 = std::find(childCategory.begin(), childCategory.end(), type);
+	auto iter2 = std::find(childCategory.begin(), childCategory.end(), location);
 	if(iter2 != childCategory.end())
 		childCategory.erase(iter2);
 }
@@ -127,19 +130,30 @@ bool GeckoLocation::getAllLeavesOnce(int *numDevices) {
 		*numDevices += childrenInCategories[listOfTypes[devTypeIndex]].size();
 	}
 
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Found %d leaves\n", *numDevices);
+#endif
+
 	if(*numDevices == 0)
 		return true;
 
+#ifdef INFO
+	int child_index = 0;
+#endif
 	for(int devTypeIndex=0;devTypeIndex<listOfTypesCount; devTypeIndex++) {
-		const vector<GeckoLocation *> &childCategory = childrenInCategories[devTypeIndex];
+		const vector<GeckoLocation *> &childCategory = childrenInCategories[listOfTypes[devTypeIndex]];
 		int sz = childCategory.size();
-		for(int i=0;i<sz;i++)
+		for(int i=0;i<sz;i++) {
 			finalChildListForThreads.push_back(childCategory[i]);
+#ifdef INFO
+			fprintf(stderr, "===GECKO: \tLeaf %d is %s\n", child_index++, childCategory[i]->getLocationName().c_str());
+#endif
+		}
 	}
 
 	return true;
 }
 
-static vector<GeckoLocation*> &GeckoLocation::getChildListForThreads() {
+vector<GeckoLocation*> &GeckoLocation::getChildListForThreads() {
 	return finalChildListForThreads;
 }
