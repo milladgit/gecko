@@ -461,7 +461,8 @@ GeckoError geckoLocationDeclare(const char *_name, const char *_type, int all, i
 		static int locationIndex = 0;
 		// adding the newly created location to the map
 		// that is persisted by GeckoLocation.
-		GeckoLocation *loc = new GeckoLocation(string(&name[0]), NULL, locObj, index, GECKO_LOCATION_INDEX_OFFSET+locationIndex);
+		GeckoLocation *loc = new GeckoLocation(string(&name[0]), NULL, locObj, index,
+											   GECKO_LOCATION_INDEX_OFFSET+locationIndex);
 		freeResources.insert(loc);
 		locationIndex++;
 
@@ -891,11 +892,30 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList) {
 
 }
 
+inline
+void geckoBindThreadsToAccDevices(int *devCount) {
+	if(GeckoLocation::getAllLeavesOnce(devCount)) {
+		vector<GeckoLocation *> &locList = GeckoLocation::getChildListForThreads();
+		// If hierarchy has changed since the last call to above function,
+		// reassign OpenACC devices to OpenMP threads.
+#pragma omp parallel num_threads(*devCount)
+		{
+			int id = omp_get_thread_num();
+			GeckoLocation *loc = locList[id];
+			if(loc->getLocationType().type == GECKO_X32 || loc->getLocationType().type == GECKO_X64)
+				acc_set_device_num(loc->getLocationIndex(), acc_device_host);
+			else if(loc->getLocationType().type == GECKO_NVIDIA)
+				acc_set_device_num(loc->getLocationIndex(), acc_device_nvidia);
+
+			loc->setThreadID(id);
+		}
+	}
+}
 
 GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
-                       int incremental_direction, int has_equal_sign, int *devCount,
+					   int incremental_direction, int has_equal_sign, int *devCount,
 					   int **out_beginLoopIndex, int **out_endLoopIndex,
-                       GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
+					   GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
 	geckoInit();
 
 #ifdef INFO
@@ -903,6 +923,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 
 	*devCount = 0;
+
+	geckoBindThreadsToAccDevices(devCount);
 
 	GeckoLocation *location = GeckoLocation::find(string(loc_at));
 	if(location == NULL) {
@@ -921,16 +943,19 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
-	*devCount = children_names.size();
+//	*devCount = children_names.size();
 
 
 	int loop_index_count = *devCount;
-	if(strcmp(exec_pol, "range") == 0 || strcmp(exec_pol, "percentage") == 0)
-		loop_index_count = ranges_count;
+//	if(strcmp(exec_pol, "range") == 0 || strcmp(exec_pol, "percentage") == 0)
+//		loop_index_count = ranges_count;
 
 	int *beginLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	int *endLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * loop_index_count);
+	for(int i=0;i<*devCount;i++) {
+		dev[i] = NULL;
+	}
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Total device count for distribution of iterations: %d\n", *devCount);
@@ -952,7 +977,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 			beginLoopIndex[i] = start;
 			endLoopIndex[i] = end;
-			dev[i] = children_names[i].loc;
+			GeckoLocation *loc = children_names[i].loc;
+			dev[loc->getThreadID()] = loc;
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "flatten") == 0) {
@@ -972,15 +998,17 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 			beginLoopIndex[i] = start;
 			endLoopIndex[i] = end;
-			dev[i] = children_names[i].loc;
+			GeckoLocation *loc = children_names[i].loc;
+			dev[loc->getThreadID()] = loc;
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "any") == 0) {
 		geckoAcquireLocationForAny(children_names);
-		*devCount = 1;
+//		*devCount = 1;
 		beginLoopIndex[0] = initval;
 		endLoopIndex[0] = boundary;
-		dev[0] = children_names[0].loc;
+		GeckoLocation *loc = children_names[i].loc;
+		dev[loc->getThreadID()] = loc;
 
 #ifdef INFO
 		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[0]->getLocationName().c_str());
@@ -1004,7 +1032,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 			beginLoopIndex[j] = start;
 			endLoopIndex[j] = end;
-			dev[j] = children_names[i].loc;
+//			dev[j] = children_names[i].loc;
+			GeckoLocation *loc = children_names[i].loc;
+			dev[loc->getThreadID()] = loc;
 			start = end;
 		}
 	} else if(strcmp(exec_pol, "percentage") == 0) {
@@ -1025,7 +1055,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 #endif
 			beginLoopIndex[j] = start;
 			endLoopIndex[j] = end;
-			dev[j] = children_names[i].loc;
+//			dev[j] = children_names[i].loc;
+			GeckoLocation *loc = children_names[i].loc;
+			dev[loc->getThreadID()] = loc;
 			start = end;
 		}
 	}

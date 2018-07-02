@@ -4,7 +4,8 @@
 
 unordered_map<string, GeckoLocation*> GeckoLocation::geckoListOfAllNodes;
 
-GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj, int locIndex, int async_id) {
+GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLocationType locationObj,
+							 int locIndex, int async_id) {
 	this->locationName = locationName;
 	this->locationObj = locationObj;
 	this->parent = parent;
@@ -21,18 +22,30 @@ GeckoLocation::~GeckoLocation() {
 	}
 }
 
-void GeckoLocation::appendChild(GeckoLocation *node) {
-	if(std::find(children.begin(), children.end(), node) != children.end())
+void GeckoLocation::appendChild(GeckoLocation *location) {
+	if(std::find(children.begin(), children.end(), location) != children.end())
 		return;
-	children.push_back(node);
+
+	treeHasBeenModified = true;
+	children.push_back(location);
+	GeckoLocationArchTypeEnum type = location->getLocationType().type;
+	childrenInCategories[type].push_back(location);
 }
 
-void GeckoLocation::removeChild(GeckoLocation *node) {
-	auto iter = std::find(children.begin(), children.end(), node);
+void GeckoLocation::removeChild(GeckoLocation *location) {
+	auto iter = std::find(children.begin(), children.end(), location);
 	if(iter == children.end())
 		return;
 
+	treeHasBeenModified = true;
+
 	children.erase(iter);
+	
+	GeckoLocationArchTypeEnum type = location->getLocationType().type;
+	vector<GeckoLocation *> &childCategory = childrenInCategories[type];
+	auto iter2 = std::find(childCategory.begin(), childCategory.end(), type);
+	if(iter2 != childCategory.end())
+		childCategory.erase(iter2);
 }
 
 
@@ -87,4 +100,46 @@ int GeckoLocation::getAsyncID() {
 
 void GeckoLocation::setAsyncID(int id) {
 	async_id = id;
+}
+
+int GeckoLocation::getThreadID() {
+	return thread_id;
+}
+
+void GeckoLocation::setThreadID(int id) {
+	thread_id = id;
+}
+
+bool GeckoLocation::getAllLeavesOnce(int *numDevices) {
+	if(!treeHasBeenModified) {
+		*numDevices = finalChildListForThreads.size();
+		return false;
+	}
+
+	treeHasBeenModified = false;
+	finalChildListForThreads.clear();
+
+	const int listOfTypesCount = 3;
+	GeckoLocationArchTypeEnum listOfTypes[listOfTypesCount] = {GECKO_X32, GECKO_X64, GECKO_NVIDIA};
+
+	*numDevices = 0;
+	for(int devTypeIndex=0;devTypeIndex<listOfTypesCount; devTypeIndex++) {
+		*numDevices += childrenInCategories[listOfTypes[devTypeIndex]].size();
+	}
+
+	if(*numDevices == 0)
+		return true;
+
+	for(int devTypeIndex=0;devTypeIndex<listOfTypesCount; devTypeIndex++) {
+		const vector<GeckoLocation *> &childCategory = childrenInCategories[devTypeIndex];
+		int sz = childCategory.size();
+		for(int i=0;i<sz;i++)
+			finalChildListForThreads.push_back(childCategory[i]);
+	}
+
+	return true;
+}
+
+static vector<GeckoLocation*> &GeckoLocation::getChildListForThreads() {
+	return finalChildListForThreads;
 }

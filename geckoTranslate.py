@@ -398,8 +398,9 @@ class SourceFile(object):
 
 			ret = ""
 			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
-			ret += "} //end of OpenMP pragma \n"
-			ret += "} // end of checking: err == GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
+			ret += "} // end of if(dev[devIndex]!=NULL)\n"
+			ret += "} // end of OpenMP pragma \n"
+			ret += "} // end of checking: err != GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
 			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n}\n"
 
 			self.parsing_region_state = 0
@@ -480,8 +481,9 @@ class SourceFile(object):
 			line += "#pragma omp parallel num_threads(jobCount)\n"
 			line += "{\n"
 			line += "int devIndex = omp_get_thread_num();\n"
-			line += "geckoBindLocationToThread(devIndex, dev[devIndex]);\n"
-			line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
+			line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
+			# line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
+			line += "if(dev[devIndex] != NULL) {\n"
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
 			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)
