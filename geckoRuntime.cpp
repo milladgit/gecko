@@ -737,10 +737,14 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 				int dstDevice = loc_list[i]->getLocationIndex();
 //				int asyncID = loc_list[i]->getAsyncID();
 				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetPreferredLocation, dstDevice);
+				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetAccessedBy, dstDevice);
+
 //				cudaMemPrefetchAsync(ptr, count_in_bytes, dstDevice, *(cudaStream_t*) acc_get_cuda_stream(asyncID));
 				cudaMemPrefetchAsync(ptr, count_in_bytes, dstDevice);
 			} else {
 				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+				cudaMemAdvise(ptr, count_in_bytes, cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
+
 				cudaMemPrefetchAsync(ptr, count_in_bytes, cudaCpuDeviceId);
 			}
 		}

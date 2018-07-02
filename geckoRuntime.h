@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <unordered_map>
 #include <omp.h>
+#include <openacc.h>
 
 #include "geckoDataTypes.h"
 #include "geckoHierarchicalTree.h"
