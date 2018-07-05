@@ -157,3 +157,7 @@ bool GeckoLocation::getAllLeavesOnce(int *numDevices) {
 vector<GeckoLocation*> &GeckoLocation::getChildListForThreads() {
 	return finalChildListForThreads;
 }
+
+unordered_map<string, GeckoLocation*> GeckoLocation::getAllLocations() {
+	return geckoListOfAllNodes;
+}

@@ -67,6 +67,8 @@ public:
 
 	static vector<GeckoLocation*> &getChildListForThreads();
 
+	static unordered_map<string, GeckoLocation*> getAllLocations();
+
 };
 
 
