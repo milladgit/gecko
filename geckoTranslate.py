@@ -482,9 +482,9 @@ class SourceFile(object):
 			line += "#pragma omp parallel num_threads(jobCount)\n"
 			line += "{\n"
 			line += "int devIndex = omp_get_thread_num();\n"
-			line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			# line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "if(dev[devIndex] != NULL) {\n"
+			line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
 			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)
