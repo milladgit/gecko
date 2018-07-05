@@ -1071,10 +1071,11 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		int acquiredLocation;
 		geckoAcquireLocationForAny(children_names, acquiredLocation);
 //		*devCount = 1;
-		beginLoopIndex[0] = initval;
-		endLoopIndex[0] = boundary;
 		GeckoLocation *loc = children_names[acquiredLocation].loc;
-		dev[loc->getThreadID()] = loc;
+		const int loc_thread_id = loc->getThreadID();
+		dev[loc_thread_id] = loc;
+		beginLoopIndex[loc_thread_id] = initval;
+		endLoopIndex[loc_thread_id] = boundary;
 
 #ifdef INFO
 		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[0]->getLocationName().c_str());
@@ -1083,49 +1084,80 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	} else if(strcmp(exec_pol, "range") == 0) {
 		geckoAcquireLocations(children_names);
 
-		int start, end, delta;
-		start = initval;
-		for(int j=0;j<ranges_count;j++) {
-			int i = j % *devCount;
-			delta = ranges[j];
-			end = (incremental_direction ? start + delta : start - delta);
-//			if(j == ranges_count-1)
-//				end = boundary;
-#ifdef INFO
-			printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
-			       (end - start) * (incremental_direction ? 1 : -1)  );
-			printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
-#endif
-			beginLoopIndex[j] = start;
-			endLoopIndex[j] = end;
-//			dev[j] = children_names[i].loc;
-			GeckoLocation *loc = children_names[i].loc;
-			dev[loc->getThreadID()] = loc;
-			start = end;
-		}
-	} else if(strcmp(exec_pol, "percentage") == 0) {
-		geckoAcquireLocations(children_names);
+		/*
+		 * Mixing ranges with each other before submitting to devices.
+		 */
+		const int old_range_count = ranges_count;
+		const int new_range_count = children_names.size();
+		int coeff = (old_range_count + new_range_count - 1) / new_range_count;
+		if(coeff == 0)
+			coeff = 1;
+		int *new_ranges = (int*) malloc(sizeof(int) * new_range_count);
+		for(int i=0;i<new_range_count;i++)
+			new_ranges[i] = 0;
+		for(int i=0;i<old_range_count;i++)
+			new_ranges[i / coeff] += ranges[i];
 
 		int start, end, delta;
 		start = initval;
-		for(int j=0;j<ranges_count;j++) {
-			int i = j % *devCount;
-			delta = (int) floor(ranges[j] / 100.0 * totalIterations);
+
+		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
+			delta = new_ranges[dev_id];
 			end = (incremental_direction ? start + delta : start - delta);
-//			if(j == ranges_count-1)
-//				end = boundary;
 #ifdef INFO
-			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
-			       (end - start) * (incremental_direction ? 1 : -1)  );
-			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
+			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
+			        (end - start) * (incremental_direction ? 1 : -1)  );
+			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[dev_id].loc);
 #endif
-			beginLoopIndex[j] = start;
-			endLoopIndex[j] = end;
-//			dev[j] = children_names[i].loc;
-			GeckoLocation *loc = children_names[i].loc;
-			dev[loc->getThreadID()] = loc;
+			GeckoLocation *loc = children_names[dev_id].loc;
+			const int tid = loc->getThreadID();
+			dev[tid] = loc;
+			beginLoopIndex[tid] = start;
+			endLoopIndex[tid] = end;
+
 			start = end;
 		}
+
+		free(new_ranges);
+
+	} else if(strcmp(exec_pol, "percentage") == 0) {
+		geckoAcquireLocations(children_names);
+		
+		/*
+		 * Mixing ranges with each other before submitting to devices.
+		 */
+		const int old_range_count = ranges_count;
+		const int new_range_count = children_names.size();
+		int coeff = (old_range_count + new_range_count - 1) / new_range_count;
+		if(coeff == 0)
+			coeff = 1;
+		int *new_ranges = (int*) malloc(sizeof(int) * new_range_count);
+		for(int i=0;i<new_range_count;i++)
+			new_ranges[i] = 0;
+		for(int i=0;i<old_range_count;i++)
+			new_ranges[i / coeff] += ranges[i];
+
+		int start, end, delta;
+		start = initval;
+		
+		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
+			delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
+			end = (incremental_direction ? start + delta : start - delta);
+#ifdef INFO
+			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
+			        (end - start) * (incremental_direction ? 1 : -1)  );
+			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[dev_id].loc);
+#endif
+			GeckoLocation *loc = children_names[dev_id].loc;
+			const int tid = loc->getThreadID();
+			dev[tid] = loc;
+			beginLoopIndex[tid] = start;
+			endLoopIndex[tid] = end;
+			
+			start = end;
+		}
+
+		free(new_ranges);
 	}
 
 

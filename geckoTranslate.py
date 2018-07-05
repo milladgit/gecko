@@ -307,6 +307,7 @@ class SourceFile(object):
 			pol = gREU.parseRangePolicy("percentage", exec_pol)
 			if pol is None:
 				pol = exec_pol.split(":")[1][:-1]
+				print pol
 				if "," not in pol:
 					print "Line: %d - 'Percentage' execution policy should include the percentages." % (lineNumber)
 					exit(1)
