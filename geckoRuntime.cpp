@@ -1109,6 +1109,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		start = initval;
 
 		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
+			if(new_ranges[dev_id] == 0)
+				continue;
 			delta = new_ranges[dev_id];
 			end = (incremental_direction ? start + delta : start - delta);
 #ifdef INFO
@@ -1154,6 +1156,8 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		start = initval;
 		
 		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
+			if(new_ranges[dev_id] == 0)
+				continue;
 			delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
 			end = (incremental_direction ? start + delta : start - delta);
 #ifdef INFO
