@@ -79,15 +79,23 @@ int main(int argc, char **argv) {
 	a = 0;
 	b = N;
 	double coeff = 3.4;
-	#pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
+	int devices_nv, devices_host;
+	devices_nv = devices_host = 0;
+	// #pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
 	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
-	#pragma acc parallel loop 
+	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,70]") variable_list(Z)
+	#pragma acc parallel loop reduction(+:devices_nv) reduction(+:devices_host)
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff * i;
+
+		devices_nv += acc_on_device(acc_device_nvidia);
+		devices_host += acc_on_device(acc_device_host);
 	}
 	#pragma gecko region end
 
 	#pragma gecko region pause at("LocA") 
+
+	printf("devices nvidia: %d\ndevices host %d\n", devices_nv, devices_host);
 
 	// #pragma acc wait
 
