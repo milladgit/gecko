@@ -1098,6 +1098,13 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		for(int i=0;i<old_range_count;i++)
 			new_ranges[i / coeff] += ranges[i];
 
+#ifdef INFO
+		for(int i=0;i<old_range_count;i++)
+			printf("==========OLD range %d: %d\n", i, ranges[i]);
+		for(int i=0;i<new_range_count;i++)
+			printf("==========NEW range %d: %d\n", i, new_ranges[i]);
+#endif
+
 		int start, end, delta;
 		start = initval;
 
@@ -1119,7 +1126,6 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		}
 
 		free(new_ranges);
-
 	} else if(strcmp(exec_pol, "percentage") == 0) {
 		geckoAcquireLocations(children_names);
 		
@@ -1136,6 +1142,13 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			new_ranges[i] = 0;
 		for(int i=0;i<old_range_count;i++)
 			new_ranges[i / coeff] += ranges[i];
+
+#ifdef INFO
+		for(int i=0;i<old_range_count;i++)
+			printf("==========OLD range %d: %d\n", i, ranges[i]);
+		for(int i=0;i<new_range_count;i++)
+			printf("==========NEW range %d: %d\n", i, new_ranges[i]);
+#endif
 
 		int start, end, delta;
 		start = initval;
