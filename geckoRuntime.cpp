@@ -1136,14 +1136,26 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		 */
 		const int old_range_count = ranges_count;
 		const int new_range_count = children_names.size();
-		int coeff = (old_range_count + new_range_count - 1) / new_range_count;
-		if(coeff == 0)
-			coeff = 1;
+
+		int *counter = (int*) malloc(sizeof(int) * new_range_count);
+		for(int i=0;i<new_range_count;i++)
+			counter[i] = 0;
+		for(int i=0;i<old_range_count;i++)
+			counter[i%new_range_count]++;
+
 		int *new_ranges = (int*) malloc(sizeof(int) * new_range_count);
 		for(int i=0;i<new_range_count;i++)
 			new_ranges[i] = 0;
-		for(int i=0;i<old_range_count;i++)
-			new_ranges[i / coeff] += ranges[i];
+
+		int index = 0;
+		for(int i=0;i<new_range_count;i++) {
+			for(int j=0;j<counter[i];j++) {
+				new_ranges[i] += ranges[index];
+				index++;
+			}
+		}
+
+		free(counter);
 
 #ifdef INFO
 		for(int i=0;i<old_range_count;i++)
