@@ -77,7 +77,7 @@ endif
 
 
 all: doTransformation lib $(BINS)
-# all: $(BINS)
+#all: lib $(BINS)
 
 
 $(BIN_DIR):

@@ -982,6 +982,10 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 
 	geckoBindThreadsToAccDevices(devCount);
 
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Total number of threads generated: %d\n", *devCount);
+#endif
+
 	GeckoLocation *location = GeckoLocation::find(string(loc_at));
 	if(location == NULL) {
 		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc_at);
@@ -1099,10 +1103,16 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			new_ranges[i / coeff] += ranges[i];
 
 #ifdef INFO
-		for(int i=0;i<old_range_count;i++)
-			printf("==========OLD range %d: %d\n", i, ranges[i]);
-		for(int i=0;i<new_range_count;i++)
-			printf("==========NEW range %d: %d\n", i, new_ranges[i]);
+		if(old_range_count > 0 && new_range_count > 0) {
+			fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
+			for(int i=1;i<old_range_count;i++)
+				fprintf(stderr, ", %d", ranges[i]);
+			fprintf(stderr, "]\n");
+			fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
+			for(int i=1;i<new_range_count;i++)
+				fprintf(stderr, ", %d", new_ranges[i]);
+			fprintf(stderr, "]\n");
+		}
 #endif
 
 		int start, end, delta;
@@ -1158,18 +1168,25 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		free(counter);
 
 #ifdef INFO
-		for(int i=0;i<old_range_count;i++)
-			printf("==========OLD range %d: %d\n", i, ranges[i]);
-		for(int i=0;i<new_range_count;i++)
-			printf("==========NEW range %d: %d\n", i, new_ranges[i]);
+                if(old_range_count > 0 && new_range_count > 0) {
+                        fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
+                        for(int i=1;i<old_range_count;i++)
+                                fprintf(stderr, ", %d", ranges[i]);
+                        fprintf(stderr, "]\n");
+                        fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
+                        for(int i=1;i<new_range_count;i++)
+                                fprintf(stderr, ", %d", new_ranges[i]);
+                        fprintf(stderr, "]\n");
+                }
 #endif
 
 		int start, end, delta;
 		start = initval;
 		
 		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
-			if(new_ranges[dev_id] == 0)
+			if(new_ranges[dev_id] == 0) 
 				continue;
+			
 			delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
 			end = (incremental_direction ? start + delta : start - delta);
 #ifdef INFO
@@ -1294,6 +1311,10 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 	if(devCount == 0)
 		return GECKO_SUCCESS;
 
+	GeckoLocation **locs = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * devCount);
+	for(int i=0;i<devCount;i++)
+		locs[i] = children_names[i].loc;
+
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Begin to wait on %s - Number of children to wait on: %d\n", loc_at, devCount);
 #endif
@@ -1301,7 +1322,8 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 //	for(int devIndex=0;devIndex<devCount;devIndex++)
 	{
 		int tid = omp_get_thread_num();
-		GeckoLocation *loc = GeckoLocation::find(geckoThreadDeviceMap[tid]);
+		//GeckoLocation *loc = GeckoLocation::find(geckoThreadDeviceMap[tid]);
+		GeckoLocation *loc = locs[tid];
 #ifdef INFO
 		if(loc == NULL) fprintf(stderr, "===GECKO: \tUnable to find the location associated to thread ID: %d\n", tid);
 #endif
@@ -1321,6 +1343,8 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 #ifdef INFO
 	fprintf(stderr, "===GECKO: End of wait on %s - Number of children to wait on: %d\n", loc_at, devCount);
 #endif
+
+	free(locs);
 
 	return GECKO_SUCCESS;
 }
@@ -1379,6 +1403,7 @@ GeckoError geckoFree(void *ptr) {
 }
 
 GeckoError geckoBindLocationToThread(int threadID, GeckoLocation *loc) {
+
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Binding location (%s) to thread %d\n", (loc==NULL ? "NULL" : loc->getLocationName().c_str()), threadID);

@@ -472,11 +472,12 @@ class SourceFile(object):
 					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign)
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
-			if self.exec_pol in ['"range"', '"percentage"']:
-				line += "jobCount = ranges_count;\n"
-			else:
-				line += "jobCount = devCount;\n"
+#			if self.exec_pol in ['"range"', '"percentage"']:
+#				line += "jobCount = ranges_count;\n"
+#			else:
+#				line += "jobCount = devCount;\n"
 
+			line += "jobCount = devCount;\n"
 			line += "if(err != GECKO_ERR_TOTAL_ITERATIONS_ZERO) {\n"
 			# line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
 			line += "#pragma omp parallel num_threads(jobCount)\n"
@@ -484,7 +485,7 @@ class SourceFile(object):
 			line += "int devIndex = omp_get_thread_num();\n"
 			# line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
 			line += "if(dev[devIndex] != NULL) {\n"
-			line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
+			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
 			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)

@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
 	devices_nv = devices_host = 0;
 	// #pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
 	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
-	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,70]") variable_list(Z)
+	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,20,20,30]") variable_list(Z)
 	#pragma acc parallel loop reduction(+:devices_nv) reduction(+:devices_host)
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff * i;
