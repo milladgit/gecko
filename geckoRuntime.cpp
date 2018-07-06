@@ -1082,7 +1082,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		endLoopIndex[loc_thread_id] = boundary;
 
 #ifdef INFO
-		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[0]->getLocationName().c_str());
+		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[loc_thread_id]->getLocationName().c_str());
 #endif
 
 	} else if(strcmp(exec_pol, "range") == 0) {
