@@ -161,11 +161,12 @@ string &toUpper(string &str) {
 
 inline
 void __geckoGetFields(char *line, vector<string> &v, char *delim) {
+	v.clear();
 	char* tmp = strdup(line);
 	const char* tok;
 	for (tok = strtok(line, delim);
-		 tok && *tok;
-		 tok = strtok(NULL, delim)) {
+		tok && *tok;
+		tok = strtok(NULL, delim)) {
 		string string_tok = string(tok);
 		trim(string_tok);
 		if(string_tok.size() == 0 || string_tok.compare(string("")) == 0)
@@ -968,14 +969,56 @@ void geckoBindThreadsToAccDevices(int *devCount) {
 	}
 }
 
-GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boundary,
+bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, int &ranges_count, int **ranges) {
+	char *percentage_policy = "percentage";
+	char *range_policy = "range";
+	vector<string> fields;
+	char *__exec_pol = strdup(exec_pol);
+	__geckoGetFields(__exec_pol, fields, ":\n");
+	free(__exec_pol);
+
+	if(fields.size() == 1 || *ranges != NULL) {
+		/*
+		 * It is been already parsed on the Python script or compiler side.
+		 */
+		return false;
+	}
+	if(fields[0].compare(percentage_policy) == 0)
+		exec_pol_return = string(percentage_policy);
+	else if(fields[0].compare(range_policy) == 0)
+		exec_pol_return = string(range_policy);
+
+	string list_of_numbers = fields[1];
+	if(list_of_numbers[0] != '[' || list_of_numbers[list_of_numbers.size()-1] != ']') {
+		fprintf(stderr, "===GECKO: Error in number list provided for the execution policy (%s)\n", exec_pol);
+		exit(1);
+	}
+	list_of_numbers = list_of_numbers.substr(1, list_of_numbers.size()-2);
+	char *tmp = strdup(list_of_numbers.c_str());
+	__geckoGetFields(tmp, fields, ",");
+	free(tmp);
+
+	ranges_count = fields.size();
+	int *r = (int*) malloc(sizeof(int) * ranges_count);
+	for(int i=0;i<ranges_count;i++) {
+		r[i] = atoi(fields[i].c_str());
+	}
+	*ranges = r;
+
+	return true;
+}
+
+GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size_t boundary,
 					   int incremental_direction, int has_equal_sign, int *devCount,
 					   int **out_beginLoopIndex, int **out_endLoopIndex,
 					   GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
 	geckoInit();
 
+	string exec_pol;
+	bool shouldRangesBeFreed = __geckoParseRangePercentagePolicy(exec_pol_chosen, exec_pol, ranges_count, &ranges);
+
 #ifdef INFO
-	fprintf(stderr, "===GECKO: Execution policy (%s) at location (%s)\n", exec_pol, loc_at);
+	fprintf(stderr, "===GECKO: Execution policy (%s) at location (%s)\n", exec_pol.c_str(), loc_at);
 #endif
 
 	*devCount = 0;
@@ -1026,7 +1069,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	fprintf(stderr, "===GECKO: Total device count for distribution: %d\n", children_names.size());
 #endif
 
-	if(strcmp(exec_pol, "static") == 0) {
+	if(exec_pol.compare("static") == 0) {
 		geckoAcquireLocations(children_names);
 
 		int start = initval, end;
@@ -1048,7 +1091,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			dev[loc_thread_id] = loc;
 			start = end;
 		}
-	} else if(strcmp(exec_pol, "flatten") == 0) {
+	} else if(exec_pol.compare("flatten") == 0) {
 		geckoAcquireLocations(children_names);
 
 		int start, end, delta = totalIterations / (*devCount);
@@ -1071,7 +1114,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 			dev[loc_thread_id] = loc;
 			start = end;
 		}
-	} else if(strcmp(exec_pol, "any") == 0) {
+	} else if(exec_pol.compare("any") == 0) {
 		int acquiredLocation;
 		geckoAcquireLocationForAny(children_names, acquiredLocation);
 //		*devCount = 1;
@@ -1085,7 +1128,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[loc_thread_id]->getLocationName().c_str());
 #endif
 
-	} else if(strcmp(exec_pol, "range") == 0) {
+	} else if(exec_pol.compare("range") == 0) {
 		geckoAcquireLocations(children_names);
 
 		/*
@@ -1138,7 +1181,7 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		}
 
 		free(new_ranges);
-	} else if(strcmp(exec_pol, "percentage") == 0) {
+	} else if(exec_pol.compare("percentage") == 0) {
 		geckoAcquireLocations(children_names);
 		
 		/*
@@ -1168,16 +1211,16 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		free(counter);
 
 #ifdef INFO
-                if(old_range_count > 0 && new_range_count > 0) {
-                        fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
-                        for(int i=1;i<old_range_count;i++)
-                                fprintf(stderr, ", %d", ranges[i]);
-                        fprintf(stderr, "]\n");
-                        fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
-                        for(int i=1;i<new_range_count;i++)
-                                fprintf(stderr, ", %d", new_ranges[i]);
-                        fprintf(stderr, "]\n");
-                }
+		if(old_range_count > 0 && new_range_count > 0) {
+			fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
+			for(int i=1;i<old_range_count;i++)
+				fprintf(stderr, ", %d", ranges[i]);
+			fprintf(stderr, "]\n");
+			fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
+			for(int i=1;i<new_range_count;i++)
+				fprintf(stderr, ", %d", new_ranges[i]);
+			fprintf(stderr, "]\n");
+		}
 #endif
 
 		int start, end, delta;
@@ -1204,6 +1247,9 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 		}
 
 		free(new_ranges);
+	} else {
+		fprintf(stderr, "===GECKO: Unknown chosen execution policy: '%s'.", exec_pol.c_str());
+		exit(1);
 	}
 
 
@@ -1238,6 +1284,10 @@ GeckoError geckoRegion(char *exec_pol, char *loc_at, size_t initval, size_t boun
 	for(int i=0;i<var_count;i++)
 		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
 
+	if(shouldRangesBeFreed) {
+		free(ranges);
+		ranges = NULL;
+	}
 
 	*out_dev = dev;
 	*out_beginLoopIndex = beginLoopIndex;
