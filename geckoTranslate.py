@@ -333,7 +333,7 @@ class SourceFile(object):
 				range_arr = self.exec_pol_option.split(',')
 				ranges_count = "%d" % (len(range_arr))
 				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-				range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+				range_line_begin += "float *ranges = (float*) malloc(sizeof(float) * ranges_count);\n" 
 				for i, a in enumerate(range_arr):
 					range_line_begin += "ranges[%d] = %s;\n" % (i, a)
 				range_line_end = "free(ranges);\n"
@@ -343,14 +343,14 @@ class SourceFile(object):
 				ranges_count = arr[0]
 				range_name = arr[1]
 				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-				range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+				range_line_begin += "float *ranges = &%s[0];\n" % (range_name)
 
 		elif self.exec_pol == '"percentage"':
 			if self.exec_pol_type == "array":
 				range_arr = self.exec_pol_option.split(',')
 				ranges_count = "%d" % (len(range_arr))
 				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-				range_line_begin += "int *ranges = (int*) malloc(sizeof(int) * ranges_count);\n" 
+				range_line_begin += "float *ranges = (float*) malloc(sizeof(float) * ranges_count);\n" 
 				for i, a in enumerate(range_arr):
 					range_line_begin += "ranges[%d] = %s;\n" % (i, a)
 				range_line_end = "free(ranges);\n"
@@ -360,10 +360,10 @@ class SourceFile(object):
 				ranges_count = arr[0]
 				range_name = arr[1]
 				range_line_begin = "int ranges_count = %s;\n" % (ranges_count)
-				range_line_begin += "int *ranges = &%s[0];\n" % (range_name)
+				range_line_begin += "float *ranges = &%s[0];\n" % (range_name)
 		else:
 			range_line_begin = "int ranges_count = 0;\n"
-			range_line_begin += "int *ranges = NULL;\n"
+			range_line_begin += "float *ranges = NULL;\n"
 
 		return range_line_begin, range_line_end
 
@@ -559,12 +559,6 @@ class SourceFile(object):
 			line = "%sLoadConfigWithFile(%s);" % (pragma_prefix_funcname, filename)
 		elif is_env_method_chosen:
 			line = "%sLoadConfigWithEnv();" % (pragma_prefix_funcname)
-
-		# for rodinia purposes - DELETE LATER
-		line += '\n{\n'
-		line += 'char *pol = getenv("GECKO_POLICY");\n'
-		line += 'if(pol != NULL) exec_policy_chosen = pol;\n'
-		line += '}\n'
 
 		return line
 

@@ -90,6 +90,19 @@ char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType) {
 
 static GeckoLocation *geckoTreeHead = NULL;
 static int geckoStarted = 0;
+static bool   geckoPolicyRunTimeExists = false;
+static char  *geckoChosenPolicyRunTime = NULL;
+
+void geckoCheckRunTimePolicy() {
+	char *policy_run_time = getenv("GECKO_POLICY");
+	if(policy_run_time != NULL) {
+		geckoPolicyRunTimeExists = true;
+		geckoChosenPolicyRunTime = strdup(policy_run_time);
+#ifdef INFO
+		fprintf(stderr, "===GECKO: Execution policy will be overridden by the chosen policy at runtime: %s.\n", policy_run_time);
+#endif
+	}
+}
 
 GeckoError geckoInit() {
 	if(!geckoStarted) {
@@ -118,6 +131,10 @@ GeckoError geckoInit() {
 		listOfAvailLocationTypes[string("virtual")] = d;
 
 
+//		Finding chosen policy at run time
+		geckoCheckRunTimePolicy();
+
+
 		omp_init_lock(&lock_freeResources);
 
 
@@ -139,6 +156,11 @@ void geckoCleanup() {
 	// #endif
 
 	omp_destroy_lock(&lock_freeResources);
+
+//	Finding chosen policy at run time
+	if(geckoChosenPolicyRunTime)
+		free(geckoChosenPolicyRunTime);
+
 
 
 	#ifdef INFO
@@ -969,15 +991,19 @@ void geckoBindThreadsToAccDevices(int *devCount) {
 	}
 }
 
-bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, int &ranges_count, int **ranges) {
+bool __geckoParseRangePercentagePolicy(bool is_exec_pol_editable, char *exec_pol, string &exec_pol_return, int &ranges_count, float **ranges) {
 	char *percentage_policy = "percentage";
 	char *range_policy = "range";
 	vector<string> fields;
-	char *__exec_pol = strdup(exec_pol);
-	__geckoGetFields(__exec_pol, fields, ":\n");
-	free(__exec_pol);
+	if(is_exec_pol_editable) {
+		__geckoGetFields(exec_pol, fields, ":\n");
+	} else {
+		char *__exec_pol = strdup(exec_pol);
+		__geckoGetFields(__exec_pol, fields, ":\n");
+		free(__exec_pol);
+	}
 
-	if(fields.size() == 1 || *ranges != NULL) {
+	if(fields.size() == 1) {
 		/*
 		 * It is been already parsed on the Python script or compiler side.
 		 */
@@ -1000,7 +1026,7 @@ bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, 
 	free(tmp);
 
 	ranges_count = fields.size();
-	int *r = (int*) malloc(sizeof(int) * ranges_count);
+	float *r = (float*) malloc(sizeof(float) * ranges_count);
 	for(int i=0;i<ranges_count;i++) {
 		r[i] = atoi(fields[i].c_str());
 	}
@@ -1012,11 +1038,17 @@ bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, 
 GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size_t boundary,
 					   int incremental_direction, int has_equal_sign, int *devCount,
 					   int **out_beginLoopIndex, int **out_endLoopIndex,
-					   GeckoLocation ***out_dev, int ranges_count, int *ranges, int var_count, void **var_list) {
+					   GeckoLocation ***out_dev, int ranges_count, float *ranges, int var_count, void **var_list) {
 	geckoInit();
 
 	string exec_pol;
-	bool shouldRangesBeFreed = __geckoParseRangePercentagePolicy(exec_pol_chosen, exec_pol, ranges_count, &ranges);
+
+	bool shouldRangesBeFreed;
+	if(geckoPolicyRunTimeExists) {
+		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(true, geckoChosenPolicyRunTime, exec_pol, ranges_count, &ranges);
+	} else {
+		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(false, exec_pol_chosen, exec_pol, ranges_count, &ranges);
+	}
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Execution policy (%s) at location (%s)\n", exec_pol.c_str(), loc_at);
@@ -1069,6 +1101,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Total device count for distribution: %d\n", children_names.size());
 #endif
+
 
 	if(exec_pol.compare("static") == 0) {
 		geckoAcquireLocations(children_names);
@@ -1137,24 +1170,36 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 		 */
 		const int old_range_count = ranges_count;
 		const int new_range_count = children_names.size();
-		int coeff = (old_range_count + new_range_count - 1) / new_range_count;
-		if(coeff == 0)
-			coeff = 1;
-		int *new_ranges = (int*) malloc(sizeof(int) * new_range_count);
+
+		int *counter = (int*) malloc(sizeof(int) * new_range_count);
+		for(int i=0;i<new_range_count;i++)
+			counter[i] = 0;
+		for(int i=0;i<old_range_count;i++)
+			counter[i%new_range_count]++;
+
+		float *new_ranges = (float*) malloc(sizeof(float) * new_range_count);
 		for(int i=0;i<new_range_count;i++)
 			new_ranges[i] = 0;
-		for(int i=0;i<old_range_count;i++)
-			new_ranges[i / coeff] += ranges[i];
+
+		int index = 0;
+		for(int i=0;i<new_range_count;i++) {
+			for(int j=0;j<counter[i];j++) {
+				new_ranges[i] += ranges[index];
+				index++;
+			}
+		}
+
+		free(counter);
 
 #ifdef INFO
 		if(old_range_count > 0 && new_range_count > 0) {
-			fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
+			fprintf(stderr, "===GECKO: Old range : [%.2f", ranges[0]);
 			for(int i=1;i<old_range_count;i++)
-				fprintf(stderr, ", %d", ranges[i]);
+				fprintf(stderr, ", %.2f", ranges[i]);
 			fprintf(stderr, "]\n");
-			fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
+			fprintf(stderr, "===GECKO: New range : [%.2f", new_ranges[0]);
 			for(int i=1;i<new_range_count;i++)
-				fprintf(stderr, ", %d", new_ranges[i]);
+				fprintf(stderr, ", %.2f", new_ranges[i]);
 			fprintf(stderr, "]\n");
 		}
 #endif
@@ -1165,7 +1210,8 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 		for(int dev_id=0;dev_id < new_range_count; dev_id++) {
 			if(new_ranges[dev_id] == 0)
 				continue;
-			delta = new_ranges[dev_id];
+
+			delta = (int) new_ranges[dev_id];
 			end = (incremental_direction ? start + delta : start - delta);
 #ifdef INFO
 			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
@@ -1197,7 +1243,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 		for(int i=0;i<old_range_count;i++)
 			counter[i%new_range_count]++;
 
-		int *new_ranges = (int*) malloc(sizeof(int) * new_range_count);
+		float *new_ranges = (float*) malloc(sizeof(float) * new_range_count);
 		for(int i=0;i<new_range_count;i++)
 			new_ranges[i] = 0;
 
@@ -1213,13 +1259,13 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 
 #ifdef INFO
 		if(old_range_count > 0 && new_range_count > 0) {
-			fprintf(stderr, "===GECKO: Old range : [%d", ranges[0]);
+			fprintf(stderr, "===GECKO: Old range : [%.2f", ranges[0]);
 			for(int i=1;i<old_range_count;i++)
-				fprintf(stderr, ", %d", ranges[i]);
+				fprintf(stderr, ", %.2f", ranges[i]);
 			fprintf(stderr, "]\n");
-			fprintf(stderr, "===GECKO: New range : [%d", new_ranges[0]);
+			fprintf(stderr, "===GECKO: New range : [%.2f", new_ranges[0]);
 			for(int i=1;i<new_range_count;i++)
-				fprintf(stderr, ", %d", new_ranges[i]);
+				fprintf(stderr, ", %.2f", new_ranges[i]);
 			fprintf(stderr, "]\n");
 		}
 #endif
@@ -1248,6 +1294,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 		}
 
 		free(new_ranges);
+
 	} else {
 		fprintf(stderr, "===GECKO: Unknown chosen execution policy: '%s'.", exec_pol.c_str());
 		exit(1);
