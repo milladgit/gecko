@@ -981,6 +981,7 @@ bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, 
 		/*
 		 * It is been already parsed on the Python script or compiler side.
 		 */
+		exec_pol_return = fields[0];
 		return false;
 	}
 	if(fields[0].compare(percentage_policy) == 0)
