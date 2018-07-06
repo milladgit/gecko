@@ -560,6 +560,12 @@ class SourceFile(object):
 		elif is_env_method_chosen:
 			line = "%sLoadConfigWithEnv();" % (pragma_prefix_funcname)
 
+		# for rodinia purposes - DELETE LATER
+		line += '\n{\n'
+		line += 'char *pol = getenv("GECKO_POLICY");\n'
+		line += 'if(pol != NULL) exec_policy_chosen = pol;\n'
+		line += '}\n'
+
 		return line
 
 
