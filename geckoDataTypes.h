@@ -96,4 +96,14 @@ public:
 	{};
 };
 
+
+class GeckoLocation;
+
+class __geckoLocationIterationType {
+public:
+	GeckoLocation *loc;
+	int iterationCount;
+};
+
+
 #endif

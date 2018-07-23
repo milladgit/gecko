@@ -241,7 +241,10 @@ class SourceFile(object):
 
 
 
-		line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance)
+		if "gecko_" in _type:
+			line = '%sMemoryInternalTypeDeclare(%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type[6:], count, loc, distance)
+		else:
+			line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance)
 
 		return line
 

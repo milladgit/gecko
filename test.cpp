@@ -32,11 +32,15 @@ int main() {
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(W[0:N]) type(double) location("LocA") 
 
+	gecko_double Q;
+	#pragma gecko memory allocate(Q[0:N]) type(gecko_double) location("LocA") 
+
 	// #pragma gecko memory allocate(T[0:N]) type(double) distance(near)
 
 
 	for (int i = 0; i<N; i++) {
 		Z[i] = 0.0;
+		Q[i] = i;
 	}
 
 
@@ -111,6 +115,11 @@ int main() {
 
 
 	printf("Hello World!\n");
+
+
+    for(int i=980;i<1020;i++)
+        printf("Q[%d]: %2f\n", i, Q[i]);
+
 
 	#pragma gecko memory free(X)
 	#pragma gecko memory free(Y)

@@ -17,7 +17,7 @@ using namespace std;
 #endif
 
 #include "geckoUtils.h"
-
+#include "geckoDataTypeGenerator.h"
 
 
 #define GECKO_ACQUIRE_SLEEP_DURATION_NS 100      // in nanoseconds
@@ -45,11 +45,11 @@ public:
 //class GeckoAddressInfo {
 //public:
 //	void    *p;
-//	size_t   count;
+//	size_t   total_count;
 //	size_t   startingIndex;
 //
-//	GeckoAddressInfo() : p(NULL), count(0), startingIndex(0) {}
-//	GeckoAddressInfo(void *p, size_t count, size_t startingIndex) : p(p), count(count), startingIndex(startingIndex) {}
+//	GeckoAddressInfo() : p(NULL), total_count(0), startingIndex(0) {}
+//	GeckoAddressInfo(void *p, size_t total_count, size_t startingIndex) : p(p), total_count(total_count), startingIndex(startingIndex) {}
 //};
 
 
@@ -65,7 +65,19 @@ static unordered_map<int, string> geckoThreadDeviceMap;
 
 
 
-static inline 
+
+
+
+static GeckoLocation *geckoTreeHead = NULL;
+static int geckoStarted = 0;
+static bool   geckoPolicyRunTimeExists = false;
+static char  *geckoChosenPolicyRunTime = NULL;
+
+
+
+
+
+inline
 char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType) {
 	switch(deviceType) {
 		case GECKO_NO_ARCH:
@@ -86,12 +98,6 @@ char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType) {
 
 
 
-
-
-static GeckoLocation *geckoTreeHead = NULL;
-static int geckoStarted = 0;
-static bool   geckoPolicyRunTimeExists = false;
-static char  *geckoChosenPolicyRunTime = NULL;
 
 void geckoCheckRunTimePolicy() {
 	char *policy_run_time = getenv("GECKO_POLICY");
@@ -281,7 +287,7 @@ void __geckoLoadConfFileLocDeclare(vector<string> &fields) {
 			all = 1;
 		else if(values[0].compare("start") == 0)
 			start = stoi(values[1], NULL, 10);
-		else if(values[0].compare("count") == 0)
+		else if(values[0].compare("total_count") == 0)
 			count = stoi(values[1], NULL, 10);
 	}
 
@@ -316,7 +322,7 @@ void __geckoLoadConfFileHierDeclare(vector<string> &fields) {
 			all = 1;
 		else if(values[0].compare("start") == 0)
 			start = stoi(values[1], NULL, 10);
-		else if(values[0].compare("count") == 0)
+		else if(values[0].compare("total_count") == 0)
 			count = stoi(values[1], NULL, 10);
 	}
 
@@ -745,6 +751,35 @@ bool geckoAreAllChildrenCPU(GeckoLocation *node) {
 	return true;
 }
 
+
+void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocationIterationType> &children_names, int iterationCount) {
+	const vector<GeckoLocation *> &v = loc->getChildren();
+	const size_t sz = v.size();
+	if(sz == 0) {
+		__geckoLocationIterationType git;
+		git.loc = loc;
+		git.iterationCount = iterationCount;
+		children_names.push_back(git);
+		return;
+	}
+	for(int i=0;i<sz;i++) {
+		__geckoLocationIterationType git;
+		git.loc = v[i];
+		if(i == sz - 1)
+			git.iterationCount = iterationCount - iterationCount/sz*(sz-1);
+		else
+			git.iterationCount = iterationCount / sz;
+
+		if(v[i]->getChildren().size() == 0)
+			children_names.push_back(git);
+		else
+			geckoExtractChildrenFromLocation(v[i], children_names, git.iterationCount);
+	}
+}
+
+
+
+
 inline
 GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArchTypeEnum &output_type) {
 /*
@@ -849,54 +884,25 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 	return GECKO_SUCCESS;
 }
 
-class __geckoLocationIterationType {
-public:
-	GeckoLocation *loc;
-	int iterationCount;
-};
 
-void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocationIterationType> &children_names, int iterationCount) {
-	const vector<GeckoLocation *> &v = loc->getChildren();
-	const size_t sz = v.size();
-	if(sz == 0) {
-		__geckoLocationIterationType git;
-		git.loc = loc;
-		git.iterationCount = iterationCount;
-		children_names.push_back(git);
-		return;
-	}
-	for(int i=0;i<sz;i++) {
-		__geckoLocationIterationType git;
-		git.loc = v[i];
-		if(i == sz - 1)
-			git.iterationCount = iterationCount - iterationCount/sz*(sz-1);
-		else
-			git.iterationCount = iterationCount / sz;
-
-		if(v[i]->getChildren().size() == 0)
-			children_names.push_back(git);
-		else
-			geckoExtractChildrenFromLocation(v[i], children_names, git.iterationCount);
-	}
-}
 
 void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
 #ifdef GECKO_WAIT_ON_ALL_DEV_TO_BE_FREE
-	const int count = locList.size();
+	const int total_count = locList.size();
 	while(1) {
 		omp_set_lock(&lock_freeResources);
 		int i;
-		for(i=0;i<count;i++) {
+		for(i=0;i<total_count;i++) {
 			if(freeResources.find(locList[i].loc) == freeResources.end()) {     // found a busy resource
 				break;
 			}
 		}
-		if(i < count) {
+		if(i < total_count) {
 			omp_unset_lock(&lock_freeResources);
 			usleep(GECKO_ACQUIRE_SLEEP_DURATION_NS);
 			continue;
 		}
-		for(int i=0;i<count;i++) {
+		for(int i=0;i<total_count;i++) {
 			GeckoLocation *device = locList[i].loc;
 			const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
 			freeResources.erase(iter);
@@ -924,19 +930,19 @@ void geckoAcquireLocationForAny(vector<__geckoLocationIterationType> &locList, i
 	int *indexes = (int *) malloc(sizeof(int) * locListSize);
 	while(1) {
 		omp_set_lock(&lock_freeResources);
-		int count = 0;
+		int total_count = 0;
 		int i;
 		for(i=0;i<locListSize;i++) {
 			if(freeResources.find(locList[i].loc) != freeResources.end()) {     // found a free resource
-				indexes[count++] = i;
+				indexes[total_count++] = i;
 			}
 		}
-		if(count == 0) {
+		if(total_count == 0) {
 			omp_unset_lock(&lock_freeResources);
 			usleep(GECKO_ACQUIRE_SLEEP_DURATION_NS);
 			continue;
 		}
-		i = rand() % count;
+		i = rand() % total_count;
 		int index = indexes[i];
 		GeckoLocation *device = locList[index].loc;
 		const unordered_set<GeckoLocation *>::iterator &iter = freeResources.find(device);
@@ -1095,7 +1101,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	}
 
 #ifdef INFO
-	fprintf(stderr, "===GECKO: Total device count for distribution: %d\n", children_names.size());
+	fprintf(stderr, "===GECKO: Total device total_count for distribution: %d\n", children_names.size());
 #endif
 
 
@@ -1521,4 +1527,47 @@ GeckoError geckoBindLocationToThread(int threadID, GeckoLocation *loc) {
 	geckoThreadDeviceMap[threadID] = loc->getLocationName();
 
 	return GECKO_SUCCESS;
+}
+
+
+GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance) {
+	GeckoLocationArchTypeEnum type;
+	GeckoLocation *const pLocation = GeckoLocation::find(location);
+	if(pLocation == NULL) {
+		fprintf(stderr, "===GECKO %s (%d): Unable to find the location (%s)\n", __FILE__, __LINE__, location);
+		exit(1);
+	}
+	geckoMemoryAllocationAlgorithm(pLocation, type);
+	vector<__geckoLocationIterationType> childrenList;
+	vector<int> childrenListFinal;
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Allocating internal data type: Location(%s) - Count(%d) \n", location, count);
+#endif
+
+	switch(type) {
+		case GECKO_X32:
+		case GECKO_X64:
+			Q.allocateMemOnlyHost(count);
+			break;
+		case GECKO_NVIDIA:
+			Q.allocateMemOnlyGPU(count);
+			break;
+		case GECKO_UNIFIED_MEMORY:
+			geckoExtractChildrenFromLocation(pLocation, childrenList, 0);
+			for(int i=0;i<childrenList.size();i++) {
+				GeckoLocationArchTypeEnum type = childrenList[i].loc->getLocationType().type;
+				if(type == GECKO_X32 || type == GECKO_X64) {
+					childrenListFinal.push_back(-1);
+				} else {
+					childrenListFinal.push_back(childrenList[i].loc->getLocationIndex());
+				}
+			}
+			Q.allocateMem(count, childrenListFinal);
+			break;
+		default:
+			fprintf(stderr, "=== GECKO: Unrecognized architecture for memory allocation - Arch: %s\n",
+			        geckoGetLocationTypeName(type));
+			exit(1);
+	}
 }

@@ -30,6 +30,7 @@
 #include <openacc.h>
 
 #include "geckoDataTypes.h"
+#include "geckoDataTypeGenerator.h"
 #include "geckoHierarchicalTree.h"
 
 #ifndef _OPENMP
@@ -44,6 +45,10 @@
 using namespace std;
 
 
+extern unordered_map<void*, GeckoMemory> geckoMemoryTable;
+
+
+
 GeckoError 	geckoInit();
 void 	   	geckoCleanup();
 
@@ -56,6 +61,7 @@ GeckoError 	geckoLocationDeclare(const char *name, const char *_type, int all, i
 GeckoError 	geckoHierarchyDeclare(char operation, const char *child_name, const char *parent, int all, int start,
 								 int count);
 GeckoError 	geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance);
+
 
 GeckoError  geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size_t boundary,
 					   int incremental_direction, int has_equal_sign, int *devCount,
@@ -74,5 +80,19 @@ GeckoError 	geckoFree(void *ptr);
 GeckoError 	geckoBindLocationToThread(int threadID, GeckoLocation *loc);
 
 void 		geckoDrawHierarchyTree(char *rootNode, char *filename);
+extern char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType);
+
+
+
+
+GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArchTypeEnum &output_type);
+void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocationIterationType> &children_names, int iterationCount);
+
+
+
+
+GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance);
+
+
 
 #endif
