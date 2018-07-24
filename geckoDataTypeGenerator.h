@@ -66,7 +66,7 @@ public:
 		count_per_dev = count;
 		dev_count = 1;
 		arr = (Type**) malloc(sizeof(Type*) * dev_count);
-		cudaMallocManaged((void**) &arr[0], sizeof(Type) * count_per_dev);
+		cudaMalloc((void**) &arr[0], sizeof(Type) * count_per_dev);
 	}
 
 	void allocateMem(size_t count) {
