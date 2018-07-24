@@ -74,9 +74,7 @@ public:
 		this->total_count = count;
 
 //		arr = (Type**) malloc(sizeof(Type*) * dev_count);
-		void **arr_2;
-		cudaMallocManaged((void***) &arr_2, sizeof(Type**) * dev_count);
-		arr = (Type**) arr_2;
+		cudaMallocManaged((void***) &arr, sizeof(Type**) * dev_count);
 
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
@@ -108,6 +106,11 @@ public:
 			}
 
 		}
+		for(int i=0;i<dev_count;i++) {
+			int dev_id = dev_list[i];
+			cudaMemAdvise(&arr[0], sizeof(Type **) * dev_count, cudaMemAdviseSetReadMostly, dev_id);
+		}
+
 	}
 
 	void allocateMem(size_t count, vector<int> &dl) {
