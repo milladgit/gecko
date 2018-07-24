@@ -74,7 +74,7 @@ public:
 		this->total_count = count;
 
 //		arr = (Type**) malloc(sizeof(Type*) * dev_count);
-		cudaMallocManaged((void***) &arr, sizeof(Type**) * dev_count);
+		cudaMallocManaged((void***) &arr, sizeof(Type*) * dev_count);
 
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
