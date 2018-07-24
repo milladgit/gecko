@@ -8,6 +8,8 @@
 #include <vector>
 #include <stdlib.h>
 
+#define CUDA_ENABLED
+
 #ifdef CUDA_ENABLED
 #include <cuda_runtime.h>
 #endif
@@ -73,6 +75,10 @@ public:
 			new_index += count_per_dev;
 		}
 		return arr[dev_id][new_index];
+	}
+
+	Type *operator+ (int index) {
+		return &operator[](index);
 	}
 
 	void allocateMemOnlyHost(size_t count) {
