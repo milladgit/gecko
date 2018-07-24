@@ -13,6 +13,8 @@
 #endif
 
 
+#include <openacc.h>
+
 
 using namespace std;
 
@@ -38,7 +40,7 @@ class gecko_generator : public gecko_type_base {
 
 public:
 	gecko_generator<Type>() : arr(NULL) {}
-	~gecko_generator<Type>() {freeMem();}
+	~gecko_generator<Type>() {}
 
 	Type &operator[] (int index) {
 		int new_index = index % count_per_dev;
@@ -91,14 +93,16 @@ public:
 				}
 				arr[i] = (Type*) a;
 
+
 #ifdef INFO
-				fprintf(stderr, "===GECKO: COUNT_PER_DEV - CPU: %d\n", count_per_dev_refined);
+//				fprintf(stderr, "===GECKO: COUNT_PER_DEV - CPU: %d\n", count_per_dev_refined);
 #endif
 
 			} else {
 				void *a = NULL;
 #ifdef CUDA_ENABLED
-				cudaSetDevice(dev_id);
+				//cudaSetDevice(dev_id);
+//				acc_set_device_num(dev_id, acc_device_nvidia);
 				if(cudaSuccess != cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined)) {
 					fprintf(stderr, "===GECKO: Unable to allocate managed memory on device (%d).\n", dev_id);
 					exit(1);
@@ -106,8 +110,9 @@ public:
 #endif
 				arr[i] = (Type*) a;
 
+
 #ifdef INFO
-				fprintf(stderr, "===GECKO: COUNT_PER_DEV - GPU: %d\n", count_per_dev_refined);
+//				fprintf(stderr, "===GECKO: COUNT_PER_DEV - GPU: %d\n", count_per_dev_refined);
 #endif
 			}
 
