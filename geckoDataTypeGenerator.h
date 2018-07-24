@@ -73,17 +73,26 @@ public:
 		count_per_dev = count / dev_count;
 		this->total_count = count;
 
-		arr = (Type**) malloc(sizeof(Type*) * dev_count);
+//		arr = (Type**) malloc(sizeof(Type*) * dev_count);
+		void **arr_2;
+		cudaMallocManaged((void***) &arr_2, sizeof(Type**) * dev_count);
+		arr = (Type**) arr_2;
 
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
 			int count_per_dev_refined = count_per_dev;
-			printf("============================COUNT_PER_DEV: %d\n", count_per_dev);
 			if(i == dev_count-1)
 				count_per_dev_refined = total_count - i*count_per_dev;
 			if(dev_id == -1) {
-				arr[i] = (Type *) malloc(sizeof(Type) * count_per_dev_refined);
-				printf("============================COUNT_PER_DEV - CPU: %d\n", count_per_dev);
+				cudaSetDevice(-1);
+//				arr[i] = (Type *) malloc(sizeof(Type) * count_per_dev_refined);
+				void *a = NULL;
+				cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined);
+				arr[i] = (Type*) a;
+
+#ifdef INFO
+				fprintf(stderr, "===GECKO: COUNT_PER_DEV - CPU: %d\n", count_per_dev_refined);
+#endif
 
 			} else {
 				void *a = NULL;
@@ -92,7 +101,10 @@ public:
 				cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined);
 #endif
 				arr[i] = (Type*) a;
-				printf("============================COUNT_PER_DEV - GPU: %d\n", count_per_dev);
+
+#ifdef INFO
+				fprintf(stderr, "===GECKO: COUNT_PER_DEV - GPU: %d\n", count_per_dev_refined);
+#endif
 			}
 
 		}
@@ -108,15 +120,16 @@ public:
 			return;
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
-			if(dev_id == -1)
-				::free(arr[i]);
-			else {
+//			if(dev_id == -1)
+//				::free(arr[i]);
+//			else {
 #ifdef CUDA_ENABLED
 				cudaFree(arr[i]);
 #endif
-			}
+//			}
 		}
-		::free(arr);
+//		::free(arr);
+		cudaFree(arr);
 		arr = NULL;
 	}
 };
