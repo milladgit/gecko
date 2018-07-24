@@ -82,10 +82,13 @@ public:
 			if(i == dev_count-1)
 				count_per_dev_refined = total_count - i*count_per_dev;
 			if(dev_id == -1) {
-				cudaSetDevice(-1);
+//				cudaSetDevice(-1);
 //				arr[i] = (Type *) malloc(sizeof(Type) * count_per_dev_refined);
 				void *a = NULL;
-				cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined);
+				if(cudaSuccess != cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined)) {
+					fprintf(stderr, "===GECKO: Unable to allocate managed memory on device (%d).\n", dev_id);
+					exit(1);
+				}
 				arr[i] = (Type*) a;
 
 #ifdef INFO
@@ -96,7 +99,10 @@ public:
 				void *a = NULL;
 #ifdef CUDA_ENABLED
 				cudaSetDevice(dev_id);
-				cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined);
+				if(cudaSuccess != cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined)) {
+					fprintf(stderr, "===GECKO: Unable to allocate managed memory on device (%d).\n", dev_id);
+					exit(1);
+				}
 #endif
 				arr[i] = (Type*) a;
 
