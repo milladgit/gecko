@@ -12,18 +12,41 @@
 #include <cuda_runtime.h>
 #endif
 
-
 #include <openacc.h>
 
+#include "geckoUtils.h"
 
 using namespace std;
 
+
+typedef enum {
+	GECKO_GENERATOR_HOST = 0,
+	GECKO_GENERATOR_GPU,
+	GECKO_GENERATOR_UNIFIED,
+	GECKO_GENERATOR_UNKNOWN,
+	GECKO_GENERATOR_LEN
+}GeckoGeneratorMemoryType;
+
+
+
+
 class gecko_type_base {
+protected:
+	size_t total_count;
+	size_t count_per_dev;
+	int dev_count;
+	GeckoGeneratorMemoryType mem_type;
+	int sizes_in_byte[2];
+	vector<int> dev_list;
+
+	void *alloc(GeckoGeneratorMemoryType mem_type, int datasize, int count);
+	void freeMemBase(void **arr);
+
 public:
-	virtual void setDevList(vector<int> dl) = 0;
+	void setDevList(vector<int> dl);
 	virtual void allocateMemOnlyHost(size_t count) = 0;
 	virtual void allocateMemOnlyGPU(size_t count) = 0;
-	virtual void allocateMem(size_t count) = 0;
+	virtual void allocateMemUnifiedMem(size_t count) = 0;
 	virtual void allocateMem(size_t count, vector<int> &dl) = 0;
 	virtual void freeMem() = 0;
 };
@@ -33,13 +56,13 @@ template<class Type>
 class gecko_generator : public gecko_type_base {
 
 	Type **arr;
-	size_t total_count;
-	size_t count_per_dev;
-	int dev_count;
-	vector<int> dev_list;
 
 public:
-	gecko_generator<Type>() : arr(NULL) {}
+	gecko_generator<Type>() : arr(NULL) {
+		mem_type = GECKO_GENERATOR_UNKNOWN;
+		sizes_in_byte[0] = sizeof(Type);
+		sizes_in_byte[1] = sizeof(Type*);
+	}
 	~gecko_generator<Type>() {}
 
 	Type &operator[] (int index) {
@@ -52,12 +75,8 @@ public:
 		return arr[dev_id][new_index];
 	}
 
-	void setDevList(vector<int> dl) {
-		dev_list = dl;
-		dev_count = dev_list.size();
-	}
-
 	void allocateMemOnlyHost(size_t count) {
+		mem_type = GECKO_GENERATOR_HOST;
 		count_per_dev = count;
 		dev_count = 1;
 		arr = (Type**) malloc(sizeof(Type*) * dev_count);
@@ -65,87 +84,54 @@ public:
 	}
 
 	void allocateMemOnlyGPU(size_t count) {
+		mem_type = GECKO_GENERATOR_GPU;
 		count_per_dev = count;
 		dev_count = 1;
 		arr = (Type**) malloc(sizeof(Type*) * dev_count);
 		cudaMalloc((void**) &arr[0], sizeof(Type) * count_per_dev);
 	}
 
-	void allocateMem(size_t count) {
+	void allocateMemUnifiedMem(size_t count) {
+		mem_type = GECKO_GENERATOR_UNIFIED;
 		count_per_dev = count / dev_count;
 		this->total_count = count;
 
-//		arr = (Type**) malloc(sizeof(Type*) * dev_count);
-		cudaMallocManaged((void***) &arr, sizeof(Type*) * dev_count);
+		GECKO_CUDA_CHECK(cudaMallocManaged((void***) &arr, sizeof(Type*) * dev_count));
 
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
 			int count_per_dev_refined = count_per_dev;
 			if(i == dev_count-1)
 				count_per_dev_refined = total_count - i*count_per_dev;
-			if(dev_id == -1) {
-//				cudaSetDevice(-1);
-//				arr[i] = (Type *) malloc(sizeof(Type) * count_per_dev_refined);
-				void *a = NULL;
-				if(cudaSuccess != cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined)) {
-					fprintf(stderr, "===GECKO: Unable to allocate managed memory on device (%d).\n", dev_id);
-					exit(1);
-				}
-				arr[i] = (Type*) a;
+			if(dev_id != -1)
+				acc_set_device_num(dev_id, acc_device_nvidia);
 
-
-#ifdef INFO
-//				fprintf(stderr, "===GECKO: COUNT_PER_DEV - CPU: %d\n", count_per_dev_refined);
-#endif
-
-			} else {
-				void *a = NULL;
+			void *a = NULL;
 #ifdef CUDA_ENABLED
-				//cudaSetDevice(dev_id);
-//				acc_set_device_num(dev_id, acc_device_nvidia);
-				if(cudaSuccess != cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined)) {
-					fprintf(stderr, "===GECKO: Unable to allocate managed memory on device (%d).\n", dev_id);
-					exit(1);
-				}
+			GECKO_CUDA_CHECK(cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined));
 #endif
-				arr[i] = (Type*) a;
-
+			arr[i] = (Type*) a;
 
 #ifdef INFO
-//				fprintf(stderr, "===GECKO: COUNT_PER_DEV - GPU: %d\n", count_per_dev_refined);
+			fprintf(stderr, "===GECKO: COUNT_PER_DEV - %s: %d\n", (dev_id == -1 ? "CPU" : "GPU"), count_per_dev_refined);
 #endif
-			}
-
 		}
+
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
 			cudaMemAdvise(&arr[0], sizeof(Type **) * dev_count, cudaMemAdviseSetReadMostly, dev_id);
 		}
-
 	}
 
 	void allocateMem(size_t count, vector<int> &dl) {
 		setDevList(dl);
-		allocateMem(count);
+		allocateMemUnifiedMem(count);
 	}
 
 	void freeMem() {
-		if(arr == NULL)
-			return;
-		for(int i=0;i<dev_count;i++) {
-			int dev_id = dev_list[i];
-//			if(dev_id == -1)
-//				::free(arr[i]);
-//			else {
-#ifdef CUDA_ENABLED
-				cudaFree(arr[i]);
-#endif
-//			}
-		}
-//		::free(arr);
-		cudaFree(arr);
-		arr = NULL;
+		freeMemBase((void**)arr);
 	}
+
 };
 
 #define G_GENERATOR(TYPE) typedef gecko_generator<TYPE> gecko_##TYPE
