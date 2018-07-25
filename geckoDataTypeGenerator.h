@@ -67,6 +67,18 @@ public:
 	}
 	~gecko_generator<Type>() {}
 
+	gecko_generator<Type>(const gecko_generator<Type> &obj) {
+//		this->arr = obj.arr;
+		total_count = obj.total_count;
+		count_per_dev = obj.count_per_dev;
+		dev_count = obj.dev_count;
+		mem_type = obj.mem_type;
+		sizes_in_byte[0] = obj.sizes_in_byte[0];
+		sizes_in_byte[1] = obj.sizes_in_byte[1];
+		dev_list = obj.dev_list;
+		arr = obj.arr;
+	}
+
 	Type &operator[] (int index) {
 		int new_index = index % count_per_dev;
 		int dev_id = index / count_per_dev;
