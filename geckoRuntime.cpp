@@ -1542,7 +1542,7 @@ GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, s
 	vector<int> childrenListFinal;
 
 #ifdef INFO
-	fprintf(stderr, "===GECKO: Allocating internal data type: Location(%s) - Count(%d) \n", location, count);
+	fprintf(stderr, "===GECKO: Allocating internal data type: Location(%s) - LocationType(%s) - Count(%d) \n", location, geckoGetLocationTypeName(type), count);
 #endif
 
 	switch(type) {
@@ -1563,6 +1563,12 @@ GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, s
 					childrenListFinal.push_back(childrenList[i].loc->getLocationIndex());
 				}
 			}
+#ifdef INFO
+			fprintf(stderr, "===GECKO: \tlocation list: ");
+			for(int i=0;i<childrenList.size();i++)
+				fprintf(stderr, "%s, ", childrenList[i].loc->getLocationName().c_str());
+			fprintf(stderr, "\n");
+#endif
 			Q.allocateMem(count, childrenListFinal);
 			break;
 		default:

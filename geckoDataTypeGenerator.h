@@ -90,6 +90,10 @@ public:
 	}
 
 	void allocateMemOnlyGPU(size_t count) {
+		if(true) {
+			allocateMemUnifiedMem(count);
+			return;
+		}
 		mem_type = GECKO_GENERATOR_GPU;
 		count_per_dev = count;
 		dev_count = 1;
