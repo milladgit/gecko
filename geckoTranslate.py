@@ -193,6 +193,7 @@ class SourceFile(object):
 		loc = '""'
 		tile = ""
 		varToFree = ""
+		varToFreeObj = ""
 		distance = ""
 		i = 3
 		while i < len(keywords):
@@ -207,12 +208,25 @@ class SourceFile(object):
 				distance = k[1][:-1]
 			elif k[0] == "free":
 				varToFree = k[1][:-1]
+			elif k[0] == "freeobj":
+				varToFreeObj = k[1][:-1]
 
 			i += 1
 
 
 		if varToFree != "":
-			line = "%sFree(%s);\n" % (pragma_prefix_funcname, varToFree)
+			varList = varToFree.split(",")
+			line = ""
+			for v in varList:
+				if len(v)>0:
+					line += "%sFree(%s);\n" % (pragma_prefix_funcname, v)
+			return line
+		elif varToFreeObj != "":
+			varList = varToFreeObj.split(",")
+			line = ""
+			for v in varList:
+				if len(v)>0:
+					line += "%s.freeMem();\n" % (v)
 			return line
 
 		name_list = name.strip().split("[")

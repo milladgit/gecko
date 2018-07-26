@@ -89,7 +89,7 @@ int main() {
 		// #pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 		#pragma acc parallel loop present(Z)
 		for (int i = a; i<b; i++) {
-			Z[i] = i * coeff;
+			Z[i] = Q[i] * coeff;
 		}
 		#pragma gecko region end
 
@@ -122,8 +122,8 @@ int main() {
 
 
 	#pragma gecko memory free(X)
-	#pragma gecko memory free(Y)
-	#pragma gecko memory free(Z)
+	#pragma gecko memory free(Y,Z,)
+	#pragma gecko memory freeobj(Q)
 
 	return 0;
 }
