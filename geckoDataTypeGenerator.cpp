@@ -3,9 +3,9 @@
 #include "geckoUtils.h"
 
 void gecko_type_base::setDevList(vector<int> dl) {
-	dev_count = dl.size();
-	dev_list = (int*) malloc(sizeof(int) * dev_count);
-	for(int i=0;i<dev_count;i++) {
+	*dev_count = dl.size();
+	dev_list = (int*) malloc(sizeof(int) * *dev_count);
+	for(int i=0;i<*dev_count;i++) {
 		dev_list[i] = dl[i];
 	}
 }
@@ -36,18 +36,18 @@ void gecko_type_base::freeMemBase(void **arr) {
 	}
 
 	if(mem_type == GECKO_GENERATOR_HOST) {
-		for (int i = 0; i < dev_count; i++)
+		for (int i = 0; i < *dev_count; i++)
 			free(arr[i]);
 		free(arr);
 	}
 #ifdef CUDA_ENABLED
 	else if(mem_type == GECKO_GENERATOR_GPU) {
-		for (int i = 0; i < dev_count; i++)
+		for (int i = 0; i < *dev_count; i++)
 			cudaFree(arr[i]);
 		free(arr);
 	}
 	else if(mem_type == GECKO_GENERATOR_UNIFIED) {
-		for (int i = 0; i < dev_count; i++)
+		for (int i = 0; i < *dev_count; i++)
 			cudaFree(arr[i]);
 		cudaFree(arr);
 	}
