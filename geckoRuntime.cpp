@@ -1081,11 +1081,6 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
-#ifdef INFO
-	for(int i=0;i<children_names.size();i++) {
-		fprintf(stderr, "===GECKO: \tChosen locations under %s - %d: %s\n", loc_at, i, children_names[i].loc->getLocationName().c_str());
-	}
-#endif
 //	*devCount = children_names.size();
 
 
@@ -1101,7 +1096,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	}
 
 #ifdef INFO
-	fprintf(stderr, "===GECKO: Total device total_count for distribution: %d\n", children_names.size());
+	fprintf(stderr, "===GECKO: Number of locations for distribution: %d\n", children_names.size());
 #endif
 
 
@@ -1558,7 +1553,7 @@ GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, s
 			for(int i=0;i<childrenList.size();i++) {
 				GeckoLocationArchTypeEnum type = childrenList[i].loc->getLocationType().type;
 				if(type == GECKO_X32 || type == GECKO_X64) {
-					childrenListFinal.push_back(-1);
+					childrenListFinal.push_back(cudaCpuDeviceId);
 				} else {
 					childrenListFinal.push_back(childrenList[i].loc->getLocationIndex());
 				}

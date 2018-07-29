@@ -419,7 +419,8 @@ class SourceFile(object):
 			ret += "} // end of if(dev[devIndex]!=NULL)\n"
 			ret += "} // end of OpenMP pragma \n"
 			ret += "} // end of checking: err != GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
-			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n}\n"
+			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n"
+			ret += "}\n"
 
 			self.parsing_region_state = 0
 
@@ -504,6 +505,7 @@ class SourceFile(object):
 			line += "if(dev[devIndex] != NULL) {\n"
 			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
+			line += "printf(\"========GECKO: beginLI: %d - endLI: %d - dev_id: %d\\n\", beginLI, endLI, devIndex);\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
 			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)
 			if datatype is None:

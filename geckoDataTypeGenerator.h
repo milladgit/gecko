@@ -31,7 +31,6 @@ typedef enum {
 
 
 
-
 class gecko_type_base {
 protected:
 	size_t total_count;
@@ -39,7 +38,7 @@ protected:
 	int dev_count;
 	GeckoGeneratorMemoryType mem_type;
 	int sizes_in_byte[2];
-	vector<int> dev_list;
+	int *dev_list;
 
 	void *alloc(GeckoGeneratorMemoryType mem_type, int datasize, int count);
 	void freeMemBase(void **arr);
@@ -57,15 +56,18 @@ public:
 template<class Type>
 class gecko_generator : public gecko_type_base {
 
-	Type **arr;
+	int tempIndex = -10000;
 
 public:
+	Type **arr;
 	gecko_generator<Type>() : arr(NULL) {
 		mem_type = GECKO_GENERATOR_UNKNOWN;
 		sizes_in_byte[0] = sizeof(Type);
 		sizes_in_byte[1] = sizeof(Type*);
 	}
-	~gecko_generator<Type>() {}
+	~gecko_generator<Type>() {
+		printf("==================INDEX WITH PROBLEM: %d\n", tempIndex);
+	}
 
 	gecko_generator<Type>(const gecko_generator<Type> &obj) {
 //		this->arr = obj.arr;
@@ -75,18 +77,36 @@ public:
 		mem_type = obj.mem_type;
 		sizes_in_byte[0] = obj.sizes_in_byte[0];
 		sizes_in_byte[1] = obj.sizes_in_byte[1];
-		dev_list = obj.dev_list;
 		arr = obj.arr;
+		dev_list = (int*) malloc(sizeof(int) * dev_count);
+		for(int i=0;i<dev_count;i++) {
+			dev_list[i] = obj.dev_list[i];
+		}
+		tempIndex = obj.tempIndex;
 	}
 
-	Type &operator[] (int index) {
+#pragma acc routine seq
+	Type &operator[] (size_t index) {
+//		return arr[dev_count-2][count_per_dev+2];
+//#if 0
+
+		if(index == total_count) {
+			tempIndex = index;
+			index = total_count-1;
+		}
+//#endif
+//		if(index < 0)
+//			index = 0;
 		int new_index = index % count_per_dev;
-		int dev_id = index / count_per_dev;
+		int dev_id = ((int)index) / ((int)count_per_dev);
 		if(dev_id>=dev_count) {
 			dev_id = dev_count - 1;
 			new_index += count_per_dev;
 		}
+//		if(dev_id < 0)
+//			dev_id = 0;
 		return arr[dev_id][new_index];
+//#endif
 	}
 
 	Type *operator+ (int index) {
@@ -96,6 +116,7 @@ public:
 	void allocateMemOnlyHost(size_t count) {
 		mem_type = GECKO_GENERATOR_HOST;
 		count_per_dev = count;
+		total_count = count;
 		dev_count = 1;
 		arr = (Type**) malloc(sizeof(Type*) * dev_count);
 		arr[0] = (Type*) malloc(sizeof(Type) * count_per_dev);
@@ -116,33 +137,45 @@ public:
 	void allocateMemUnifiedMem(size_t count) {
 		mem_type = GECKO_GENERATOR_UNIFIED;
 		count_per_dev = count / dev_count;
-		this->total_count = count;
+		total_count = count;
+		int curr_dev = acc_get_device_num(acc_device_nvidia);
 
+		acc_set_device_num(0, acc_device_nvidia);
 		GECKO_CUDA_CHECK(cudaMallocManaged((void***) &arr, sizeof(Type*) * dev_count));
 
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
-			int count_per_dev_refined = count_per_dev;
+			size_t count_per_dev_refined = count_per_dev;
 			if(i == dev_count-1)
 				count_per_dev_refined = total_count - i*count_per_dev;
-			if(dev_id != -1)
+			if(dev_id != cudaCpuDeviceId)
 				acc_set_device_num(dev_id, acc_device_nvidia);
+			else
+				acc_set_device_num(0, acc_device_host);
 
 			void *a = NULL;
 #ifdef CUDA_ENABLED
+			printf("==============================FROM HELL\n");
 			GECKO_CUDA_CHECK(cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined));
+			printf("==============================FROM HELL 2 - array_count: %d - DEV_COUNT: %d\n", count_per_dev_refined, dev_count);
 #endif
+#pragma acc wait
 			arr[i] = (Type*) a;
+			printf("==============================FROM HELL 2 - A\n");
 
 #ifdef INFO
 			fprintf(stderr, "===GECKO: COUNT_PER_DEV - %s: %d\n", (dev_id == -1 ? "CPU" : "GPU"), count_per_dev_refined);
 #endif
 		}
 
+		printf("==============================FROM HELL 3\n");
 		for(int i=0;i<dev_count;i++) {
 			int dev_id = dev_list[i];
-			cudaMemAdvise(&arr[0], sizeof(Type **) * dev_count, cudaMemAdviseSetReadMostly, dev_id);
+			cudaMemAdvise(&arr[dev_id], sizeof(Type **) * dev_count, cudaMemAdviseSetReadMostly, dev_id);
 		}
+		printf("==============================FROM HELL 4\n");
+		acc_set_device_num(curr_dev, acc_device_nvidia);
+		printf("==============================FROM HELL 5\n");
 	}
 
 	void allocateMem(size_t count, vector<int> &dl) {
@@ -163,6 +196,7 @@ G_GENERATOR(int);
 G_GENERATOR(long);
 G_GENERATOR(float);
 G_GENERATOR(double);
+G_GENERATOR(bool);
 typedef gecko_generator<unsigned int> gecko_unsigned_int;
 
 
