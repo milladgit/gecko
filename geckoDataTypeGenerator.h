@@ -71,32 +71,8 @@ public:
 	~gecko_generator<Type>() {
 	}
 
-//	gecko_generator<Type>(const gecko_generator<Type> &obj) {
-//		this->arr = obj.arr;
-//		total_count = obj.total_count;
-//		count_per_dev = obj.count_per_dev;
-//		dev_count = obj.dev_count;
-//		mem_type = obj.mem_type;
-//		sizes_in_byte[0] = obj.sizes_in_byte[0];
-//		sizes_in_byte[1] = obj.sizes_in_byte[1];
-//		arr = obj.arr;
-//		dev_list = (int*) malloc(sizeof(int) * dev_count);
-//		for(int i=0;i<dev_count;i++) {
-//			dev_list[i] = obj.dev_list[i];
-//		}
-//	}
-
 #pragma acc routine seq
 	Type &operator[] (size_t index) {
-//		return arr[0][0];
-#if 0
-
-		if(index >= *total_count) {
-			index = *total_count-1;
-		}
-		if(index < 0)
-			index = 0;
-#endif
 		int new_index = index % (*count_per_dev);
 		int dev_id = index / (*count_per_dev);
 		if(dev_id>=*dev_count) {
@@ -104,14 +80,7 @@ public:
 //i			new_index += *count_per_dev;
 			new_index = index - dev_id*(*count_per_dev);
 		}
-/*
-		if(dev_id < 0 || dev_id >= *dev_count)
-			dev_id = 0;
-		if(new_index < 0 || new_index >= *count_per_dev)
-			new_index = 0;
-*/
 		Type *d = arr[dev_id];
-		
 		return d[new_index];
 //#endif
 	}
@@ -179,10 +148,12 @@ public:
 		}
 
 		printf("==============================FROM HELL 3\n");
+		/*
 		for(int i=0;i<*dev_count;i++) {
 			int dev_id = dev_list[i];
-			//GECKO_CUDA_CHECK(cudaMemAdvise(&arr[dev_id], sizeof(Type **) * *dev_count, cudaMemAdviseSetReadMostly, dev_id));
+			GECKO_CUDA_CHECK(cudaMemAdvise(&arr[dev_id], sizeof(Type **) * *dev_count, cudaMemAdviseSetReadMostly, dev_id));
 		}
+		 */
 		printf("==============================FROM HELL 4\n");
 		acc_set_device_num(curr_dev, acc_device_nvidia);
 		printf("==============================FROM HELL 5\n");

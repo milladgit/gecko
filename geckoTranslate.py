@@ -23,6 +23,8 @@ class SourceFile(object):
 		self.pragmaForRegion = ""
 
 		self.var_list = ""
+		self.variable_list_internal = ""
+
 		self.exec_pol = ""
 		self.exec_pol_type = ""
 		self.exec_pol_option = ""
@@ -266,7 +268,8 @@ class SourceFile(object):
 		at = ""
 		exec_pol = ""
 		exec_pol_int = ""
-		varList = ""
+		var_list = ""
+		variable_list_internal = ""
 		end = False
 		wait = False
 
@@ -280,7 +283,9 @@ class SourceFile(object):
 			elif k[0] == "exec_pol_int":
 				exec_pol_int = k[1][:-1]
 			elif k[0] == "variable_list":
-				varList = k[1][:-1]
+				var_list = k[1][:-1]
+			elif k[0] == "variable_list_internal":
+				variable_list_internal = k[1][:-1]
 			elif k[0] == "end":
 				end = True
 			elif k[0] == "pause":
@@ -301,7 +306,8 @@ class SourceFile(object):
 			exit(1)
 
 
-		self.var_list = varList
+		self.var_list = var_list
+		self.variable_list_internal = variable_list_internal
 
 		self.exec_pol = exec_pol
 		self.at = at
@@ -416,6 +422,7 @@ class SourceFile(object):
 
 			ret = ""
 			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
+			ret += "#pragma acc wait(asyncID)\n"
 			ret += "} // end of if(dev[devIndex]!=NULL)\n"
 			ret += "} // end of OpenMP pragma \n"
 			ret += "} // end of checking: err != GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
@@ -505,9 +512,8 @@ class SourceFile(object):
 			line += "if(dev[devIndex] != NULL) {\n"
 			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
-			line += "printf(\"========GECKO: beginLI: %d - endLI: %d - dev_id: %d\\n\", beginLI, endLI, devIndex);\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
-			line += "%s deviceptr(%s) async(asyncID)\n" % (self.pragmaForRegion, self.var_list)
+			line += "%s deviceptr(%s) async(asyncID) copyin(%s)\n" % (self.pragmaForRegion, self.var_list, self.variable_list_internal)
 			if datatype is None:
 				datatype = ""
 
