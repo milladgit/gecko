@@ -15,6 +15,7 @@
 #endif
 
 #include <openacc.h>
+#include <omp.h>
 
 #include "geckoUtils.h"
 
@@ -63,14 +64,14 @@ public:
 		mem_type = GECKO_GENERATOR_UNKNOWN;
 		sizes_in_byte[0] = sizeof(Type);
 		sizes_in_byte[1] = sizeof(Type*);
-		cudaMallocManaged((void**) &total_count, sizeof(size_t));
+		GECKO_CUDA_CHECK(cudaMallocManaged((void**) &total_count, sizeof(size_t)));
 		cudaMallocManaged((void**) &count_per_dev, sizeof(size_t));
 		cudaMallocManaged((void**) &dev_count, sizeof(int));
 	}
 	~gecko_generator<Type>() {
 	}
 
-	gecko_generator<Type>(const gecko_generator<Type> &obj) {
+//	gecko_generator<Type>(const gecko_generator<Type> &obj) {
 //		this->arr = obj.arr;
 //		total_count = obj.total_count;
 //		count_per_dev = obj.count_per_dev;
@@ -83,28 +84,35 @@ public:
 //		for(int i=0;i<dev_count;i++) {
 //			dev_list[i] = obj.dev_list[i];
 //		}
-	}
+//	}
 
 #pragma acc routine seq
 	Type &operator[] (size_t index) {
-//		return arr[dev_count-2][count_per_dev+2];
-//#if 0
+//		return arr[0][0];
+#if 0
 
-		if(index == *total_count) {
+		if(index >= *total_count) {
 			index = *total_count-1;
 		}
-//#endif
-//		if(index < 0)
-//			index = 0;
-		int new_index = index % *count_per_dev;
-		int dev_id = ((int)index) / ((int)count_per_dev);
+		if(index < 0)
+			index = 0;
+#endif
+		int new_index = index % (*count_per_dev);
+		int dev_id = index / (*count_per_dev);
 		if(dev_id>=*dev_count) {
 			dev_id = *dev_count - 1;
-			new_index += *count_per_dev;
+//i			new_index += *count_per_dev;
+			new_index = index - dev_id*(*count_per_dev);
 		}
-//		if(dev_id < 0)
-//			dev_id = 0;
-		return arr[dev_id][new_index];
+/*
+		if(dev_id < 0 || dev_id >= *dev_count)
+			dev_id = 0;
+		if(new_index < 0 || new_index >= *count_per_dev)
+			new_index = 0;
+*/
+		Type *d = arr[dev_id];
+		
+		return d[new_index];
 //#endif
 	}
 
@@ -142,7 +150,10 @@ public:
 		acc_set_device_num(0, acc_device_nvidia);
 		GECKO_CUDA_CHECK(cudaMallocManaged((void***) &arr, sizeof(Type*) * *dev_count));
 
-		for(int i=0;i<*dev_count;i++) {
+		//for(int i=0;i<*dev_count;i++) {
+		#pragma omp parallel num_threads(*dev_count)
+		{
+			int i = omp_get_thread_num();
 			int dev_id = dev_list[i];
 			size_t count_per_dev_refined = *count_per_dev;
 			if(i == *dev_count-1)
@@ -156,7 +167,7 @@ public:
 #ifdef CUDA_ENABLED
 			printf("==============================FROM HELL\n");
 			GECKO_CUDA_CHECK(cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined));
-			printf("==============================FROM HELL 2 - array_count: %d - DEV_COUNT: %d\n", count_per_dev_refined, dev_count);
+			printf("==============================FROM HELL 2 - array_count: %d - DEV_COUNT: %d\n", count_per_dev_refined, *dev_count);
 #endif
 #pragma acc wait
 			arr[i] = (Type*) a;
@@ -170,7 +181,7 @@ public:
 		printf("==============================FROM HELL 3\n");
 		for(int i=0;i<*dev_count;i++) {
 			int dev_id = dev_list[i];
-			cudaMemAdvise(&arr[dev_id], sizeof(Type **) * *dev_count, cudaMemAdviseSetReadMostly, dev_id);
+			//GECKO_CUDA_CHECK(cudaMemAdvise(&arr[dev_id], sizeof(Type **) * *dev_count, cudaMemAdviseSetReadMostly, dev_id));
 		}
 		printf("==============================FROM HELL 4\n");
 		acc_set_device_num(curr_dev, acc_device_nvidia);
@@ -183,9 +194,9 @@ public:
 	}
 
 	void freeMem() {
-		cudaFree((void**) &total_count);
-		cudaFree((void**) &count_per_dev);
-		cudaFree((void**) &dev_count);
+		cudaFree(total_count);
+		cudaFree(count_per_dev);
+		cudaFree(dev_count);
 		freeMemBase((void**)arr);
 	}
 
