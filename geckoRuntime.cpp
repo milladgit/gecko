@@ -1288,6 +1288,9 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 			
 			delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
 			end = (incremental_direction ? start + delta : start - delta);
+			if(dev_id == new_range_count - 1)
+				end = boundary;
+
 #ifdef INFO
 			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
 			        (end - start) * (incremental_direction ? 1 : -1)  );
