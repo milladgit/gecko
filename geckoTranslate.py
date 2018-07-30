@@ -416,6 +416,26 @@ class SourceFile(object):
 		return var_line
 
 
+	def generateVarListInternalClause(self):
+		varList = self.variable_list_internal.split(",")
+		varList2 = []
+		for v in varList:
+			v = v.strip()
+			if v == "":
+				continue
+			varList2.append(v)
+
+		varList = varList2
+
+		var_clause = ""
+		for v in varList:
+			var_clause += "%s[0:1]," % (v)
+		if len(varList) > 0:
+			var_clause = var_clause[0:-1]
+
+		return var_clause
+
+
 	def parseRegionKernel(self, keywords, lineNumber):
 		if self.parsing_region_state == -1:
 			# we are dealing with the OpenACC pragma line after our directive
@@ -486,6 +506,7 @@ class SourceFile(object):
 
 
 			var_list_line = self.generateVarLine()
+			var_list_internal_clause = self.generateVarListInternalClause()
 
 
 			line = '{\n'
@@ -513,7 +534,7 @@ class SourceFile(object):
 			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
-			line += "%s deviceptr(%s) async(asyncID) copyin(%s)\n" % (self.pragmaForRegion, self.var_list, self.variable_list_internal)
+			line += "%s deviceptr(%s) async(asyncID) copyin(%s)\n" % (self.pragmaForRegion, self.var_list, var_list_internal_clause)
 			if datatype is None:
 				datatype = ""
 
