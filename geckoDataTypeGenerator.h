@@ -134,29 +134,29 @@ public:
 
 			void *a = NULL;
 #ifdef CUDA_ENABLED
-			printf("==============================FROM HELL\n");
+			// printf("==============================FROM HELL\n");
 			GECKO_CUDA_CHECK(cudaMallocManaged((void**) &a, sizeof(Type) * count_per_dev_refined));
-			printf("==============================FROM HELL 2 - array_count: %d - DEV_COUNT: %d\n", count_per_dev_refined, *dev_count);
+			// printf("==============================FROM HELL 2 - array_count: %d - DEV_COUNT: %d\n", count_per_dev_refined, *dev_count);
 #endif
 #pragma acc wait
 			arr[i] = (Type*) a;
-			printf("==============================FROM HELL 2 - A\n");
+			// printf("==============================FROM HELL 2 - A\n");
 
 #ifdef INFO
 			fprintf(stderr, "===GECKO: COUNT_PER_DEV - %s: %d\n", (dev_id == -1 ? "CPU" : "GPU"), count_per_dev_refined);
 #endif
 		}
 
-		printf("==============================FROM HELL 3\n");
+		// printf("==============================FROM HELL 3\n");
 		/*
 		for(int i=0;i<*dev_count;i++) {
 			int dev_id = dev_list[i];
 			GECKO_CUDA_CHECK(cudaMemAdvise(&arr[dev_id], sizeof(Type **) * *dev_count, cudaMemAdviseSetReadMostly, dev_id));
 		}
 		 */
-		printf("==============================FROM HELL 4\n");
+		// printf("==============================FROM HELL 4\n");
 		acc_set_device_num(curr_dev, acc_device_nvidia);
-		printf("==============================FROM HELL 5\n");
+		// printf("==============================FROM HELL 5\n");
 	}
 
 	void allocateMem(size_t count, vector<int> &dl) {
