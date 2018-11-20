@@ -14,7 +14,7 @@ GECKO_LIB_FILE=$(LIB_DIR)/libgecko.a
 CUDA_HOME?=/usr/local/cuda-9.0
 
 ENABLE_CUDA = ON
-ENABLE_DEBUG = OFF
+ENABLE_DEBUG = ON
 
 LDFLAGS=-lm
 

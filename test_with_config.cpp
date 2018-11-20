@@ -1,6 +1,9 @@
 
 #include <stdio.h>
 
+void print(double *p) {
+	printf("===PRINTING: %.2f\n", *p);
+}
 
 int main(int argc, char **argv) {
 
@@ -34,9 +37,18 @@ int main(int argc, char **argv) {
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 
 
+	gecko_double Q;
+	#pragma gecko memory allocate(Q[0:N]) type(gecko_double) location("LocA") 
+
 	for (int i = 0; i<N; i++) {
 		Z[i] = 0.0;
+		Q[i] = i;
 	}
+
+	print(Q+700);
+	printf("FROM HERE: %.2f\n", *(Q+23));
+	if(true)
+		return;
 
 
 	int a, b;
@@ -75,6 +87,7 @@ int main(int argc, char **argv) {
 	// }
 	// #pragma gecko region end
 
+	char *exec_pol_chosen = "percentage:[10,20,20,20,30]";
 
 	a = 0;
 	b = N;
