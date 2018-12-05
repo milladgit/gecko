@@ -2,13 +2,16 @@
 
 This repo contains Gecko Runtime Library. With help of a set of directives, Gecko addresses multi-level memory hierarchy in current and future modern architectures and platforms.
 
+![](./docs/images/hierarchy_tree.png)
+
+------------------
+
 ## Constructs
 
 ###  Location
 
 The principal constructs of *Gecko* model are *locations*. Locations are an abstraction of storage and computational resources available in the system and are represented as a node in *Gecko*’s tree-based hierarchy model. Similar to the Parallel Memory Hierarchy (PMH) model, *Gecko* is a tree of memory modules with workers at the leaves. Workers will perform computations and they attach to the memory modules. The figure shown below illustrates an example of our *Gecko* model. This model represents a regular cluster/supercomputer node with two non-uniform memory access (NUMA) multicore processors, *LocNi*, and four GPUs, *LocGi*, similar to ORNL’s Titan supercomputer.
 
-![](./docs/images/hierarchy_tree.png)
 
 
 ### Location Type
@@ -211,3 +214,8 @@ Flatten distribution is similar to the static distribution in its even distribut
 Gecko provides more flexibility in workload distribution with customized iteration ranges. An application is able to fine-tune the assigned ranges to each location hoping that such distribution leads to a better workload balance among workers in those locations. In such cases, one can provide an array of percentages or numbers to represent the policy. Considering the previous example with 1,000,000 iterations, one can provide percentage[20, 30, 40, 10] or range[200000, 300000, 400000, 100000] as a distribution policy to Gecko, which both approaches lead to the same workload strategy. In case the targeted location, similar to LocB, does not have four children, Gecko will assign the percentage and numbers from the beginning to children of the targeted location. The rest of the numbers in the list are assigned to other locations in a round-robin or work-stealing fashion. The static strategy is a special case of percentage and range strategies where we have percentage[25, 25, 25, 25] or range[250000, 250000, 250000, 250000] in our example.
 
 In some cases, we are only interested in engaging only one of the locations of the hierarchy. As long as only a single location is chosen, an application is not committed to run in a specific location. In such cases, Gecko will find an idle location among children of the chosen target. Alternatively, based on the recorded history, Gecko can also choose the best architecture for this kernel if we are targeting a multi-architecture virtual location. For the above-mentioned example, in our current implementation, all the 1,000,000 iterations are assigned to a child of LocC in the hierarchy, if LocC is chosen as the target.
+
+
+## Contact
+
+To contact developers, please email to Millad Ghane (mghane2@uh.edu).
