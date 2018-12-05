@@ -32,8 +32,8 @@ int main() {
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(W[0:N]) type(double) location("LocA") 
 
-	double *Q;
-	#pragma gecko memory allocate(Q[0:N]) type(double) location("LocA") 
+	gecko_double Q;
+	#pragma gecko memory allocate(Q[0:N]) type(gecko_double) location("LocA") 
 
 	// #pragma gecko memory allocate(T[0:N]) type(double) distance(near)
 
@@ -46,11 +46,46 @@ int main() {
 
 	int a, b;
 
+	// a = 1821;
+	// b = 23;
+
+	// #pragma gecko region at("LocG") exec_pol("flatten") variable_list(Y)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i>=b; i--) {
+	// 	Y[i] *= 2.0;
+	// }
+	// #pragma gecko region end
+
+
+	// a = 0;
+	// b = N;
+	// #pragma gecko region at("LocN") exec_pol("flatten") variable_list(X)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i<b; i++) {
+	// 	X[i] *= 2.0;
+	// }
+	// #pragma gecko region end
+
+
+
+	// a = 0;
+	// b = N;
+	// #pragma gecko region at("LocG") exec_pol("static") variable_list(Z)
+	// // #pragma gecko region at(loc_name) exec_pol(exec_pol) variable_list(Y)
+	// #pragma acc parallel loop 
+	// for (int i = a; i<b; i++) {
+	// 	Z[i] = 2.0;
+	// }
+	// #pragma gecko region end
+
+
 	double coeff = 3.4;
 	for(int q=0;q<2;q++) {
 		a = 0;
 		b = N;
-		#pragma gecko region at("LocA") exec_pol("static") variable_list(Z,Q)
+		#pragma gecko region at("LocA") exec_pol("static") variable_list(Z) variable_list_internal(Q)
 		// #pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 		#pragma acc parallel loop present(Z)
 		for (int i = a; i<b; i++) {
@@ -60,6 +95,11 @@ int main() {
 
 	}
 	#pragma gecko region pause at("LocA") 
+
+
+
+	// #pragma acc wait
+
 
 
 	printf("Checking...\n");
@@ -81,7 +121,9 @@ int main() {
         printf("Q[%d]: %2f\n", i, Q[i]);
 
 
-	#pragma gecko memory free(X,Y,Z,Q)
+	#pragma gecko memory free(X)
+	#pragma gecko memory free(Y,Z,)
+	#pragma gecko memory freeobj(Q)
 
 	return 0;
 }

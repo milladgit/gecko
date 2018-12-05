@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
 	int N = atoi(argv[1]);
 	double *X, *Y, *Z;
 	#pragma gecko memory allocate(X[0:N]) type(double) location("LocA") 
-	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocG") 
+	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 
 
@@ -45,10 +45,6 @@ int main(int argc, char **argv) {
 		Q[i] = i;
 	}
 
-	print(Q+700);
-	printf("FROM HERE: %.2f\n", *(Q+23));
-	if(true)
-		return;
 
 
 	int a, b;
