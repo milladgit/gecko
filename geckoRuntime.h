@@ -2,14 +2,14 @@
 /*
  * Naming convetion:
  * Classes and Enumerations:
- * 		- Their name is with "UpperCamelCase" convention.
+ * 		- Their names are in the "UpperCamelCase" convention.
  * 		- Start with fullname of the runtime: Gecko*
  *		- Variable members are "lowerCamelCase"
  *		- Methods are "lowerCamelCase"
  
- * Global static variables are with "lowerCamelCase" convention.
+ * Global static variables are in the "lowerCamelCase" convention.
  
- * API functions are with "lowerCamelCase" convention.
+ * API functions are in the "lowerCamelCase" convention.
  * 
 
  * Levels of information:
@@ -32,6 +32,13 @@
 #include "geckoDataTypes.h"
 #include "geckoDataTypeGenerator.h"
 #include "geckoHierarchicalTree.h"
+#include "geckoConfigLoader.h"
+#include "geckoDraw.h"
+#include "geckoMemory.h"
+#include "geckoRegion.h"
+#include "geckoHierarchy.h"
+#include "geckoLocation.h"
+
 
 #ifndef _OPENMP
 #error Please enable OpenMP to use Gecko.
@@ -41,57 +48,27 @@
 #error Please enable OpenACC to use Gecko.
 #endif
 
-
 using namespace std;
-
-
-extern unordered_map<void*, GeckoMemory> geckoMemoryTable;
-
 
 
 GeckoError 	geckoInit();
 void 	   	geckoCleanup();
 
-GeckoError 	geckoLoadConfigWithFile(char *filename);
-GeckoError 	geckoLoadConfigWithEnv();
 
-GeckoError 	geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
-                                    int numCores, const char *mem_size, const char *mem_type);
-GeckoError 	geckoLocationDeclare(const char *name, const char *_type, int all, int start, int count);
-GeckoError 	geckoHierarchyDeclare(char operation, const char *child_name, const char *parent, int all, int start,
-								 int count);
-GeckoError 	geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance);
-
-
-GeckoError  geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size_t boundary,
-					   int incremental_direction, int has_equal_sign, int *devCount,
-					   int **out_beginLoopIndex, int **out_endLoopIndex,
-					   GeckoLocation ***out_dev, int ranges_count, float *ranges, int var_count, void **var_list);
-
-GeckoError 	geckoSetDevice(GeckoLocation *device);
-GeckoError 	geckoSetBusy(GeckoLocation *device);
-GeckoError 	geckoUnsetBusy(GeckoLocation *device);
-void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev, void **var_list);
-
-GeckoError 	geckoWaitOnLocation(char *locationName);
-
-GeckoError 	geckoFree(void *ptr);
-
-GeckoError 	geckoBindLocationToThread(int threadID, GeckoLocation *loc);
-
-void 		geckoDrawHierarchyTree(char *rootNode, char *filename);
-extern char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType);
+void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev,
+								void **var_list);
 
 
 
-
-GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArchTypeEnum &output_type);
-void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocationIterationType> &children_names, int iterationCount);
-
-
-
-
-GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance);
+/*
+ * This function is implementing the splitting method. The method refers to the approach where we divided a whole
+ * array among multiple devices. Consider array A, A[0]...A[n-1], and k devices in our system. This function splits
+ * the array A as following: A[0] ... A[n/4] is assigned to device 0, A[n/4+1] ... A[2*n/4] to device 1, and so on.
+ * However, the data type should be defined among "gecko_<data-type>" types, like gecko_double for "double" variables
+ * and gecko_long for "long" variables.
+ */
+GeckoError 	geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location,
+											GeckoDistanceTypeEnum distance);
 
 
 

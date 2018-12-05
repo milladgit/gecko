@@ -62,6 +62,19 @@ typedef enum {
 } GeckoDistanceTypeEnum;
 
 
+class GeckoCUDAProp {
+public:
+	int deviceCountTotal;
+	int deviceDeclared;
+
+	/*
+	 * Since at least we have one device, the default value for the device count is 1.
+	 */
+	explicit GeckoCUDAProp(int total=1, int declared=0) : deviceCountTotal(total), deviceDeclared(declared) {}
+};
+
+
+
 //typedef struct {
 //	void **address;
 //	size_t sz;

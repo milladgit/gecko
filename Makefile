@@ -7,7 +7,8 @@ BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_test_with_config
 # BINS=$(BIN_DIR)/output_stencil $(BIN_DIR)/output_dot_product $(BIN_DIR)/output_matrix_mul
 
 # GECKO_FILES=geckoGraph.cpp geckoRuntime.cpp geckoUtilsAcc.cpp 
-GECKO_FILES=geckoRuntime.cpp geckoHierarchicalTree.cpp geckoDataTypeGenerator.cpp
+# GECKO_FILES=geckoRuntime.cpp geckoHierarchicalTree.cpp geckoDataTypeGenerator.cpp
+GECKO_FILES=$(wildcard gecko*.cpp)
 GECKO_OBJ_FILES=$(GECKO_FILES:.cpp=.o)
 GECKO_LIB_FILE=$(LIB_DIR)/libgecko.a
 
