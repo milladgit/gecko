@@ -19,10 +19,12 @@ GeckoLocation::GeckoLocation(string locationName, GeckoLocation *parent, GeckoLo
 }
 
 GeckoLocation::~GeckoLocation() {
-	auto iter = geckoListOfAllNodes.find(this->locationName);
-	if(iter != geckoListOfAllNodes.end()) {
-		geckoListOfAllNodes.erase(iter);
-	}
+//#ifdef INFO
+//	fprintf(stderr, "===GECKO: Destructor on '%s' is called.\n", this->locationName.c_str());
+//#endif
+//	auto iter = geckoListOfAllNodes.find(this->locationName);
+//	if(iter != geckoListOfAllNodes.end())
+//		geckoListOfAllNodes.erase(iter);
 }
 
 void GeckoLocation::appendChild(GeckoLocation *location) {
@@ -141,7 +143,7 @@ bool GeckoLocation::getAllLeavesOnce(int *numDevices) {
 	int child_index = 0;
 #endif
 	for(int devTypeIndex=0;devTypeIndex<listOfTypesCount; devTypeIndex++) {
-		const vector<GeckoLocation *> &childCategory = childrenInCategories[listOfTypes[devTypeIndex]];
+		vector<GeckoLocation *> &childCategory = childrenInCategories[listOfTypes[devTypeIndex]];
 		int sz = childCategory.size();
 		for(int i=0;i<sz;i++) {
 			finalChildListForThreads.push_back(childCategory[i]);
@@ -160,4 +162,13 @@ vector<GeckoLocation*> &GeckoLocation::getChildListForThreads() {
 
 unordered_map<string, GeckoLocation*> GeckoLocation::getAllLocations() {
 	return geckoListOfAllNodes;
+}
+
+void GeckoLocation::dumpTable() {
+	auto iter = geckoListOfAllNodes.begin();
+	fprintf(stderr, "===GECKO: Dump location table:\n");
+	for(;iter != geckoListOfAllNodes.end(); iter++) {
+		fprintf(stderr, "===\t\t%s at %p\n", iter->first.c_str(), iter->second);
+	}
+	fprintf(stderr, "===GECKO: Dump location table ... Done\n");
 }

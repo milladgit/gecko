@@ -1,3 +1,4 @@
+
 # Gecko
 
 This repo contains Gecko Runtime Library. With help of a set of directives, Gecko addresses multi-level memory hierarchy in current and future modern architectures and platforms.
@@ -108,6 +109,40 @@ char op = '+';
 **Note:** at this point, we have constructed the whole tree in the example shown in the above figure.
 
 
+
+## Configuration File
+
+The whole structure of the hierarchy tree can be stored within a configuration file. Gecko can load such file and populate the tree. This brings a great flexibility to the user and makes the application extremely portable. Its keywords are shown below:
+
+ - `file`: the configuration file name.
+ - `env`: the `GECKO_CONFIG_FILE` environment variable contains the path to the file. Please refer to the section describing the environmental variables below.
+
+**Note:** The `file` and `env` could not be chosen simultaneously. 
+
+```C++
+#pragma gecko config env
+#pragma gecko config file("/path/to/config/file")
+```
+
+
+**Example:** An example of a configuration file for above-mentioned hierarchy tree is shown below:
+
+```CSV
+loctype;kind,x64,Skylake;num_cores,4;mem,4MB;name,host;
+loctype;name,tesla;kind,CC7.0,Volta;mem,4GB
+loctype;name,NODE_MEMORY;kind,Unified_Memory;size,16GB
+
+location;name,LocA;type,NODE_MEMORY;
+location;name,LocB,LocC;type,virtual
+location;name,LocN1,LocN2;type,host;
+location;name,LocG1,LocG2,LocG3,LocG4;type,tesla
+
+hierarchy;children,+,LocB,LocC;parent,LocA
+hierarchy;children,+,LocN1,LocN2;parent,LocB
+hierarchy;children,+,LocG1,LocG2,LocG3,LocG4;parent,LocC
+```
+
+
 ## Drawing
 
 For convenience, Gecko can generate the hierarchical tree for visualization purposes. Using `draw` construct, at any point at executing the program, the runtime library will generate a compatible DOT file. Eventually, one can convert a DOT file to a PDF file using the dot command: `dot -Tpdf gecko.conf -o gecko-tree.pdf`
@@ -128,6 +163,8 @@ The syntax to use `draw` is as following. It accepts a `root` keyword, which use
 ```C++
 #pragma gecko draw root("LocA")
 ```
+
+
 
 ## Memory Operations
 
@@ -202,9 +239,11 @@ By default, regions in Gecko are executed asynchronously. Synchronization points
 #pragma gecko region pause at("LocA")
 ```
 
+------------------
 
 
 ## Execution Policies
+
 Gecko supports a number of execution policies by default. Among those, we have `static`, `flatten`, `range`, `percentage`, and `any`.
 
 In static distribution, the iteration space is divided evenly among children of that location. This policy is similar to the ones with the same name in OpenACC and OpenMP. Suppose we have a for-loop with 1,000,000 iterations. For our above-mentioned example tree, if we target location LocC, Gecko will assign each LocGs[i] location 250,000 iterations to process.
@@ -215,6 +254,27 @@ Gecko provides more flexibility in workload distribution with customized iterati
 
 In some cases, we are only interested in engaging only one of the locations of the hierarchy. As long as only a single location is chosen, an application is not committed to run in a specific location. In such cases, Gecko will find an idle location among children of the chosen target. Alternatively, based on the recorded history, Gecko can also choose the best architecture for this kernel if we are targeting a multi-architecture virtual location. For the above-mentioned example, in our current implementation, all the 1,000,000 iterations are assigned to a child of LocC in the hierarchy, if LocC is chosen as the target.
 
+
+------------------
+
+## Environmental Variables
+
+### GECKO_HOME
+
+ - Compile-time variable.
+ - Specifies the path to the Gecko's folder.
+
+### GECKO_CONFIG_FILE
+
+ - Run-time variable.
+ - Specifies the path to a configuration file. If this variable is set, the file that this path is pointing to will be used to populate the hierarchy tree.
+
+### GECKO_POLICY
+
+ - Run-time variable.
+ - Specifies the execution policy for all the regions in the code. If it is set, all the regions in the code will be executed with a policy among the described one above.
+
+------------------
 
 ## Contact
 

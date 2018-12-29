@@ -183,5 +183,6 @@ GeckoError  geckoLoadConfigWithEnv() {
 		return GECKO_ERR_FAILED;
 	}
 	geckoLoadConfigWithFile(filename);
+	return GECKO_SUCCESS;
 }
 

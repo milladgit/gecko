@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 __attribute__((always_inline))
+inline
 void __geckoDrawPerNode(FILE *f, GeckoLocation *p) {
 	if(p == NULL)
 		return;
@@ -30,6 +31,7 @@ void __geckoDrawPerNode(FILE *f, GeckoLocation *p) {
 }
 
 __attribute__((always_inline))
+inline
 void __geckoDrawWithAllNodes(FILE *f, unordered_map<string, GeckoLocation*> &locMap) {
 	char line[4096];
 	unordered_set<string> alreadyBoxDrawn;

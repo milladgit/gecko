@@ -4,14 +4,21 @@
 
 #include <vector>
 #include <unordered_set>
+#include <algorithm>
 #include <omp.h>
 #include "geckoRegion.h"
 #include "geckoHierarchicalTree.h"
 #include "geckoStringUtils.h"
+#include "geckoMemory.h"
 
 #ifdef _OPENACC
 #include <openacc.h>
 #endif
+
+// for malloc
+#include <stdlib.h>
+#include <cstdlib>
+
 
 using namespace std;
 
@@ -63,7 +70,7 @@ void geckoAcquireLocations(vector<__geckoLocationIterationType> &locList) {
 		break;
 	}
 #else
-	const int count = (const int) locList.size();
+	const int count = (int) locList.size();
 	omp_set_lock(&lock_freeResources);
 	for(int i=0;i<count;i++) {
 		GeckoLocation *device = locList[i].loc;
@@ -192,13 +199,15 @@ bool __geckoParseRangePercentagePolicy(char *exec_pol, string &exec_pol_return, 
 inline
 void __geckoExecPolStatic(const size_t initval, const size_t boundary, const int incremental_direction,
 						  vector<__geckoLocationIterationType> &children_names, int *beginLoopIndex,
-						  int *endLoopIndex, GeckoLocation **const dev) {
+						  int *endLoopIndex, GeckoLocation ** dev) {
+
 	geckoAcquireLocations(children_names);
 
 	int start = (int) initval, end;
-	const int &childCount = static_cast<const int &>(children_names.size());
+	const int childCount = static_cast<const int>(children_names.size());
 
 	for(int i=0;i<childCount;i++) {
+
 		if(i == childCount - 1)
 			end = (int) boundary;
 		else
@@ -208,13 +217,15 @@ void __geckoExecPolStatic(const size_t initval, const size_t boundary, const int
 	#ifdef INFO
 		fprintf(stderr, "===GECKO:\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 			   children_names[i].iterationCount);
-		fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
+		fprintf(stderr, "[%d, %d]\n", start, end);
 	#endif
+
 		GeckoLocation *loc = children_names[i].loc;
 		int loc_thread_id = loc->getThreadID();
+		dev[loc_thread_id] = loc;
 		beginLoopIndex[loc_thread_id] = start;
 		endLoopIndex[loc_thread_id] = end;
-		dev[loc_thread_id] = loc;
+
 		start = end;
 	}
 }
@@ -226,19 +237,22 @@ __geckoExecPolFlatten(const size_t initval, const size_t boundary, const int inc
 					  int *endLoopIndex, GeckoLocation **dev) {
 	geckoAcquireLocations(children_names);
 
-	int start, end, delta = totalIterations / (*devCount);
+	int start, end;
 	start = initval;
 	const int &childCount = static_cast<const int &>(children_names.size());
+	int delta = totalIterations / childCount;
 	for(int i=0;i<childCount;i++) {
+
 		if(i == childCount-1)
 			end = boundary;
 		else
 			end = (incremental_direction ? start + delta : start - delta);
 	#ifdef INFO
-		printf("\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
+		fprintf(stderr, "\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 			   (end - start) * (incremental_direction ? 1 : -1)  );
-		printf("[%d, %d] at %p\n", start, end, children_names[i].loc);
+		fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
 	#endif
+
 		GeckoLocation *loc = children_names[i].loc;
 		int loc_thread_id = loc->getThreadID();
 		beginLoopIndex[loc_thread_id] = start;
@@ -423,6 +437,194 @@ void __geckoExecPolPercent(const size_t initval, const size_t boundary, const in
 	free(new_ranges);
 }
 
+void __geckoGetPathToRoot(string &loc, vector<GeckoLocation*> *path) {
+	path->clear();
+	GeckoLocation *location = GeckoLocation::find(loc);
+	while(location != NULL) {
+		path->push_back(location);
+		location = location->getParent();
+	}
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Path from the location '%s' to the root: ", loc.c_str());
+	const vector<GeckoLocation*> &__path = *path;
+	for(int i=0;i<path->size();i++)
+		fprintf(stderr, "%s %s", __path[i]->getLocationName().c_str(), (i == path->size()-1 ? "" : ", "));
+	fprintf(stderr, "\n");
+#endif
+}
+
+GeckoLocation* __geckoRegionFindByVarList(int var_list_count, void **var_list) {
+	if(var_list_count == 0) {
+		fprintf(stderr, "===GECKO: The size of the variable list is zero!\n");
+		exit(1);
+	}
+
+	/*
+	 *
+	 * Avoid those variables that their distance trait is set to "near" or "far".
+	 * Such variables should not be taken into consideration in the location selection
+	 * process since they are waiting for the process to be finalized!
+	 *
+	 */
+
+	int begin_index = 0;
+
+	for(;begin_index < var_list_count; begin_index++) {
+		auto iter = geckoMemoryTable.find(var_list[begin_index]);
+		if (iter == geckoMemoryTable.end()) {
+			fprintf(stderr, "===GECKO: Unable to find a variable in the list (index: %d).\n", 0);
+			exit(1);
+		}
+		const int &dist = iter->second.distance;
+		if(dist != GECKO_DISTANCE_NEAR && dist != GECKO_DISTANCE_FAR)
+			break;
+	}
+	if(begin_index == var_list_count) {
+		fprintf(stderr, "===GECKO: Unable to find a location based on the list of variables.\n");
+		exit(1);
+	}
+	string &base_loc = geckoMemoryTable[var_list[begin_index]].loc;
+
+	GeckoLocation *base_location = GeckoLocation::find(base_loc);
+	if(base_location == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find the location: %s\n", base_loc.c_str());
+		exit(1);
+	}
+
+	vector<GeckoLocation*> *base_path, *temp_path;
+	base_path = new vector<GeckoLocation*>();
+	temp_path = new vector<GeckoLocation*>();
+	__geckoGetPathToRoot(base_loc, base_path);
+	for(int i=begin_index+1;i<var_list_count;i++) {
+		auto iter = geckoMemoryTable.find(var_list[i]);
+		if(iter == geckoMemoryTable.end()) {
+			fprintf(stderr, "===GECKO: Unable to find a variable in the list (index: %d).\n", i);
+			exit(1);
+		}
+		const int &dist = iter->second.distance;
+		if(dist == GECKO_DISTANCE_NEAR || dist == GECKO_DISTANCE_FAR)
+			continue;
+		string &temp_loc = geckoMemoryTable[var_list[i]].loc;
+
+		GeckoLocation *temp_location = GeckoLocation::find(temp_loc);
+		if(temp_location == NULL) {
+			fprintf(stderr, "===GECKO: Unable to find the location: %s\n", temp_loc.c_str());
+			exit(1);
+		}
+
+		if(find(base_path->begin(), base_path->end(), temp_location) != base_path->end())
+			continue;
+
+		__geckoGetPathToRoot(temp_loc, temp_path);
+		if(find(temp_path->begin(), temp_path->end(), base_location) == temp_path->end()) {
+			fprintf(stderr, "===GECKO: Unable to find a common grandchildren among following locations: \n\t\t\t");
+			for(int j=0;j<var_list_count;j++)
+				fprintf(stderr, "%s %s", geckoMemoryTable[var_list[j]].loc.c_str(), (j == var_list_count-1 ? "" : ", "));
+			fprintf(stderr, "\n");
+			exit(1);
+		}
+
+		vector<GeckoLocation*> *t = base_path;
+		base_path = temp_path;
+		temp_path = t;
+		base_location = temp_location;
+	}
+
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Chosen location based on the variable list: %s\n", base_location->getLocationName().c_str());
+
+	fprintf(stderr, "===GECKO: Path from the chosen location '%s' to the root: {", base_location->getLocationName().c_str());
+	vector<GeckoLocation*> __path = *base_path;
+	for(int i=0;i<__path.size();i++)
+		fprintf(stderr, "%s %s", __path[i]->getLocationName().c_str(), (i == __path.size()-1 ? "" : ", "));
+	fprintf(stderr, "}\n");
+#endif
+
+	delete base_path;
+	delete temp_path;
+
+	return base_location;
+}
+
+
+bool __geckoCheckForGrandChildren(GeckoLocation *supposedToBeGrandParent, GeckoLocation *supposedToBeChild) {
+	while(supposedToBeChild != NULL) {
+		if(supposedToBeChild == supposedToBeGrandParent)
+			return true;
+		supposedToBeChild = supposedToBeChild->getParent();
+	}
+	return false;
+}
+
+void __geckoUpdateVarListWithRealAddr(int var_count, void **var_list, GeckoLocation *location) {
+	for(int i=0;i<var_count;i++) {
+		const auto iter = geckoMemoryTable.find(var_list[i]);
+		if(iter == geckoMemoryTable.end())
+			continue;
+
+		GeckoMemory &variable = iter->second;
+		const int &distance = variable.distance;
+
+		if(distance == GECKO_DISTANCE_NEAR || distance == GECKO_DISTANCE_FAR) {
+
+			if(variable.real_address != NULL)
+				continue;
+
+			int traverse_distance = variable.distance_level;
+			if(distance == GECKO_DISTANCE_NEAR)
+				traverse_distance = 0;
+
+			for(int j=0;j<traverse_distance && location->getParent() != NULL;j++)
+				location = location->getParent();
+
+			if(variable.allocType == GECKO_DISTANCE_ALLOC_TYPE_REALLOC) {
+
+				variable.loc = location->getLocationName();
+				variable.loc_ptr = location;
+
+				void *temp = variable.address;
+
+				GeckoLocationArchTypeEnum type;
+				geckoMemoryAllocationAlgorithm(location, type);
+				geckoAllocateMemory(type, location, &variable);
+
+				variable.real_address = variable.address;
+				variable.address = temp;
+
+				var_list[i] = variable.real_address;    // updating the array with real addresses
+
+			} else if(variable.allocType == GECKO_DISTANCE_ALLOC_TYPE_AUTO) {
+				if(variable.loc == location->getLocationName())
+					continue;
+
+				// Do not move a variable if it is already in the parent of current node!
+				if(__geckoCheckForGrandChildren(variable.loc_ptr, location))
+					continue;
+
+
+				// TODO: this feature is not functional!
+				void *temp;
+				// this line does not work because of the alloc type
+				geckoMemoryDeclare(&temp, variable.dataSize, variable.count, (char*) location->getLocationName().c_str(),
+						variable.distance, variable.distance_level, variable.allocType);
+				geckoMemCpy(temp, 0, variable.count, var_list[i], 0, variable.count);
+				bool is_dummy = variable.is_dummy;
+				geckoFree(var_list[i]);
+
+				var_list[i] = temp;
+				geckoMemoryTable[var_list[i]].is_dummy = is_dummy;
+			}
+		}
+	}
+}
+
+
+
+
+
+
 GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size_t boundary,
 					   int incremental_direction, int has_equal_sign, int *devCount,
 					   int **out_beginLoopIndex, int **out_endLoopIndex,
@@ -450,20 +652,28 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	fprintf(stderr, "===GECKO: Total number of threads generated: %d\n", *devCount);
 #endif
 
-	GeckoLocation *location = GeckoLocation::find(string(loc_at));
+	GeckoLocation *location = NULL;
+	if(strcmp(loc_at, "") == 0)
+		location = __geckoRegionFindByVarList(var_count, var_list);
+	else
+		location = GeckoLocation::find(string(loc_at));
+
 	if(location == NULL) {
 		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc_at);
 		exit(1);
 	}
 
-	int totalIterations = static_cast<int>(boundary - initval + has_equal_sign * (incremental_direction ? 1 : -1));
+	__geckoUpdateVarListWithRealAddr(var_count, var_list, location);
 
+
+	// finding total iteration of the loop
+	int totalIterations = static_cast<int>(boundary - initval + has_equal_sign * (incremental_direction ? 1 : -1));
 #ifdef INFO
 	fprintf(stderr, "===GECKO: TotalIterations: %d\n", totalIterations);
 #endif
-
 	if(totalIterations == 0)
 		return GECKO_ERR_TOTAL_ITERATIONS_ZERO;
+
 
 	vector<__geckoLocationIterationType> children_names;
 	geckoExtractChildrenFromLocation(location, children_names, (totalIterations >= 0 ? totalIterations : -1*totalIterations));
@@ -477,9 +687,12 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	int *beginLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	int *endLoopIndex = (int*) malloc(sizeof(int) * loop_index_count);
 	GeckoLocation **dev = (GeckoLocation**) malloc(sizeof(GeckoLocation*) * loop_index_count);
-	for(int i=0;i<*devCount;i++) {
+	for(int i=0;i<loop_index_count;i++) {
 		dev[i] = NULL;
+		beginLoopIndex[i] = 0;
+		endLoopIndex[i] = 0;
 	}
+
 
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Number of locations for distribution: %d\n", children_names.size());
@@ -488,25 +701,20 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 
 	if(exec_pol == "static") {
 		__geckoExecPolStatic(initval, boundary, incremental_direction, children_names, beginLoopIndex, endLoopIndex,
-							 dev);
-
+				dev);
 	} else if(exec_pol == "flatten") {
 		__geckoExecPolFlatten(initval, boundary, incremental_direction, devCount, totalIterations, children_names,
 							  beginLoopIndex, endLoopIndex,
 							  dev);
-
 	} else if(exec_pol == "any") {
 		__geckoExecPolAny(initval, boundary, children_names, beginLoopIndex, endLoopIndex, dev);
-
 	} else if(exec_pol == "range") {
 		__geckoExecPolRange(initval, incremental_direction, ranges_count, ranges, children_names, beginLoopIndex,
 							endLoopIndex, dev);
-
 	} else if(exec_pol == "percentage") {
 		__geckoExecPolPercent(initval, boundary, incremental_direction, ranges_count, ranges, totalIterations,
 							  children_names, beginLoopIndex,
 							  endLoopIndex, dev);
-
 	} else {
 		fprintf(stderr, "===GECKO: Unknown chosen execution policy: '%s'.", exec_pol.c_str());
 		exit(1);
@@ -538,16 +746,17 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 //	}
 
 
-#ifdef INFO
-	fprintf(stderr, "===GECKO: Advising memory allocation at location %s.\n", loc_at);
-#endif
-	for(int i=0;i<var_count;i++)
-		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
+//#ifdef INFO
+//	fprintf(stderr, "===GECKO: Advising memory allocation at location %s.\n", loc_at == NULL ? "" : loc_at);
+//#endif
+//	for(int i=0;i<var_count;i++)
+//		geckoMemoryDistribution(*devCount, dev, var_count, var_list, beginLoopIndex, endLoopIndex);
 
 	if(shouldRangesBeFreed) {
 		free(ranges);
 		ranges = NULL;
 	}
+
 
 	*out_dev = dev;
 	*out_beginLoopIndex = beginLoopIndex;
@@ -624,3 +833,22 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 
 	return GECKO_SUCCESS;
 }
+
+
+void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev,
+		int var_count, void **var_list, void **out_var_list) {
+
+	geckoFreeDistanceRealloc(var_count, out_var_list);
+
+	if(beginLoopIndex)
+		free(beginLoopIndex);
+	if(endLoopIndex)
+		free(endLoopIndex);
+	if(dev)
+		free(dev);
+	if(var_list)
+		free(var_list);
+	if(out_var_list)
+		free(out_var_list);
+}
+

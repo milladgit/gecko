@@ -8,7 +8,7 @@
 #include <vector>
 #include <stdlib.h>
 
-#define CUDA_ENABLED
+//#define CUDA_ENABLED
 
 #ifdef CUDA_ENABLED
 #include <cuda_runtime.h>
@@ -16,6 +16,8 @@
 
 #include <openacc.h>
 #include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "geckoUtils.h"
 
@@ -71,7 +73,7 @@ public:
 	~gecko_generator<Type>() {
 	}
 
-#pragma acc routine seq
+//#pragma acc routine seq
 	Type &operator[] (size_t index) {
 		int new_index = index % (*count_per_dev);
 		int dev_id = index / (*count_per_dev);

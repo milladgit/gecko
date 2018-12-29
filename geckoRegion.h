@@ -15,6 +15,8 @@ GeckoError  geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, siz
 
 GeckoError 	geckoWaitOnLocation(char *locationName);
 
+void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev,
+								int var_count, void **var_list, void **out_var_list);
 
 
 

@@ -6,25 +6,34 @@
 #include "geckoHierarchicalTree.h"
 #include "geckoRuntime.h"
 
+#include <stdlib.h>
+
 #include <unordered_map>
+#include <unistd.h>
+#include <chrono>
+#include <thread>
 
 using namespace std;
 
 #ifdef CUDA_ENABLED
 #include <cuda_runtime.h>
+#include <cstring>
+
 #endif
 
 
 unordered_map<void*, GeckoMemory> geckoMemoryTable;
 
 
-void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoMemory *var) {
+void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *device, GeckoMemory *var) {
 	void *addr = NULL;
 	size_t sz_in_byte = var->dataSize * var->count;
-	GeckoLocation *device = GeckoLocation::find(var->loc);
 	if(device == NULL) {
-		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", var->loc.c_str());
-		exit(1);
+		device = GeckoLocation::find(var->loc);
+		if (device == NULL) {
+			fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", var->loc.c_str());
+			exit(1);
+		}
 	}
 
 	switch(type) {
@@ -90,28 +99,27 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 										int iterationCount) {
 
 	const vector<GeckoLocation *> &v = loc->getChildren();
-	const size_t sz = v.size();
-	if(sz == 0) {
+	if(v.empty()) {
 		__geckoLocationIterationType git;
 		git.loc = loc;
 		git.iterationCount = iterationCount;
 		children_names.push_back(git);
 		return;
 	}
+	const size_t sz = v.size();
+	const int delta = static_cast<int>(iterationCount / sz);
 	for(int i=0;i<sz;i++) {
 		__geckoLocationIterationType git;
 		git.loc = v[i];
-		if(i == sz - 1)
-			git.iterationCount = static_cast<int>(iterationCount - iterationCount / sz * (sz - 1));
-		else
-			git.iterationCount = static_cast<int>(iterationCount / sz);
 
-		if(v[i]->getChildren().size() == 0)
+		git.iterationCount = ((i < sz) ? delta : static_cast<int>(iterationCount - delta * (sz - 1)));
+
+		if(git.loc->getChildren().empty())
 			children_names.push_back(git);
 		else
-			geckoExtractChildrenFromLocation(v[i], children_names, git.iterationCount);
-	}
+			geckoExtractChildrenFromLocation(git.loc, children_names, git.iterationCount);
 
+	}
 }
 
 
@@ -187,11 +195,17 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 	return GECKO_SUCCESS;
 }
 
-GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance) {
+GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance,
+		int distance_level, GeckoDistanceAllocationTypeEnum allocationType) {
+
 	geckoInit();
 
 	if(distance == GECKO_DISTANCE_UNKNOWN) {
 		fprintf(stderr, "===GECKO: Distance at location (%s) is unknown (GECKO_DISTANCE_UNKNOWN).\n", location);
+		exit(1);
+	}
+	if(distance_level <= 0 && distance == GECKO_DISTANCE_FAR) {
+		fprintf(stderr, "===GECKO: Distance level starts from 1.\n");
 		exit(1);
 	}
 
@@ -199,20 +213,26 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 
 	variable.dataSize = dataSize;
 	variable.count = count;
-	variable.loc = string(location);
-	GeckoLocation *const pLocation = GeckoLocation::find(variable.loc);
-	if(pLocation == NULL) {
-		fprintf(stderr, "===GECKO %s (%d): Unable to find the location (%s)\n", __FILE__, __LINE__, location);
-		exit(1);
-	}
+	variable.distance = distance;
+	variable.distance_level = distance_level;
+	variable.allocType = allocationType;
 
-//	variable.distance = distance;
-//
-//	if(distance == GECKO_DISTANCE_NOT_SET) {
-	GeckoLocationArchTypeEnum type;
-	geckoMemoryAllocationAlgorithm(pLocation, type);
-	geckoAllocateMemory(type, &variable);
-//	}
+	if(distance == GECKO_DISTANCE_NEAR || distance == GECKO_DISTANCE_FAR) {
+		variable.is_dummy = true;
+		variable.address = malloc(dataSize);
+	} else {
+		variable.loc = string(location);
+		GeckoLocation *pLocation = GeckoLocation::find(variable.loc);
+		if (pLocation == NULL) {
+			fprintf(stderr, "===GECKO %s (%d): Unable to find the location (%s)\n", __FILE__, __LINE__, location);
+			exit(1);
+		}
+		variable.loc_ptr = (GeckoLocation *) pLocation;
+
+		GeckoLocationArchTypeEnum type;
+		geckoMemoryAllocationAlgorithm(pLocation, type);
+		geckoAllocateMemory(type, pLocation, &variable);
+	}
 
 	geckoMemoryTable[variable.address] = variable;
 
@@ -256,21 +276,210 @@ void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *
 	}
 }
 
-GeckoError geckoFree(void *ptr) {
-	auto iter = geckoMemoryTable.find(ptr);
+GeckoError __geckoFindLocationBasedOnPointer(void *ptr, GeckoLocationArchTypeEnum &type, GeckoLocation **out_loc) {
+	*out_loc = NULL;
+
+	const auto iter = geckoMemoryTable.find(ptr);
 	if(iter == geckoMemoryTable.end())
-		return GECKO_ERR_FAILED;
+		return GECKO_ERR_MEM_ADDRESS_NOT_FOUND;
 
 	string &loc = iter->second.loc;
 	GeckoLocation *g_loc = GeckoLocation::find(loc);
-	if(g_loc == NULL) {
-		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc);
+	if(g_loc == NULL)
+		return GECKO_ERR_LOCATION_NOT_FOUND;
+
+	geckoMemoryAllocationAlgorithm(g_loc, type);
+}
+
+GeckoError geckoFree(void *ptr) {
+	geckoInit();
+
+	GeckoLocation *g_loc;
+	GeckoLocationArchTypeEnum type;
+
+	const auto iter = geckoMemoryTable.find(ptr);
+	if(iter == geckoMemoryTable.end()) {
+		fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", ptr);
 		exit(1);
 	}
-//	geckoMemoryFreeAlgorithm(g_loc->getLocationType().type, ptr, g_loc);
-	GeckoLocationArchTypeEnum type;
+
+	string &loc = iter->second.loc;
+	g_loc = GeckoLocation::find(loc);
+	if(g_loc == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc.c_str());
+		exit(1);
+	}
+
 	geckoMemoryAllocationAlgorithm(g_loc, type);
-	geckoFreeMemory(type, ptr, g_loc);
+
+	const int distance = iter->second.distance;
+	if(distance == GECKO_DISTANCE_FAR || distance == GECKO_DISTANCE_NEAR) {
+		geckoFreeMemory(type, iter->second.real_address, g_loc);
+		free(iter->second.address);
+	} else {
+		geckoFreeMemory(type, iter->second.address, g_loc);
+	}
+
+	iter->second.address = NULL;
+	iter->second.allocated = false;
+
+	geckoMemoryTable.erase(iter);
+
+	return GECKO_SUCCESS;
+}
+
+GeckoError geckoFreeDistanceRealloc(int var_count, void **var_list) {
+
+	for(int i=0;i<var_count;i++) {
+		GeckoLocation *g_loc;
+		GeckoLocationArchTypeEnum type;
+
+		void *ptr = var_list[i];
+
+		const auto iter = geckoMemoryTable.find(ptr);
+		if (iter == geckoMemoryTable.end()) {
+			fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", ptr);
+			exit(1);
+		}
+		const int distance = iter->second.distance;
+		if(distance != GECKO_DISTANCE_NEAR && distance != GECKO_DISTANCE_FAR)
+			continue;
+		if(iter->second.allocType != GECKO_DISTANCE_ALLOC_TYPE_REALLOC)
+			continue;
+		if(iter->second.real_address == NULL)
+			continue;
+
+		string &loc = iter->second.loc;
+		g_loc = GeckoLocation::find(loc);
+		if (g_loc == NULL) {
+			fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc.c_str());
+			exit(1);
+		}
+
+		geckoMemoryAllocationAlgorithm(g_loc, type);
+
+		geckoFreeMemory(type, iter->second.real_address, g_loc);
+		iter->second.real_address = NULL;
+
+	}
+
+	return GECKO_SUCCESS;
+}
+
+
+
+
+GeckoError geckoMemCpy(void *dest, int dest_start, size_t dest_count, void *src, int src_start, size_t src_count) {
+	geckoInit();
+
+	if(src_count != dest_count) {
+		fprintf(stderr, "===GECKO: Source and destination in 'memcopy' operations should have same size (%ld != %ld). \n", dest_count, src_count);
+		exit(1);
+	}
+
+	GeckoLocation *src_loc, *dest_loc;
+	GeckoLocationArchTypeEnum src_type, dest_type;
+	GeckoError err;
+
+	err = __geckoFindLocationBasedOnPointer(src, src_type, &src_loc);
+	if(err == GECKO_ERR_MEM_ADDRESS_NOT_FOUND) {
+		fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", src);
+		exit(1);
+	} else if(err == GECKO_ERR_LOCATION_NOT_FOUND) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", src_loc->getLocationName().c_str());
+		exit(1);
+	}
+
+	err = __geckoFindLocationBasedOnPointer(dest, dest_type, &dest_loc);
+	if(err == GECKO_ERR_MEM_ADDRESS_NOT_FOUND) {
+		fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", dest);
+		exit(1);
+	} else if(err == GECKO_ERR_LOCATION_NOT_FOUND) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", dest_loc->getLocationName().c_str());
+		exit(1);
+	}
+
+	const GeckoLocationArchTypeEnum src_final_type = src_loc->getLocationType().type;
+	const GeckoLocationArchTypeEnum dest_final_type = dest_loc->getLocationType().type;
+	int is_host = (src_final_type == GECKO_X32 || dest_final_type == GECKO_X64);
+	const auto iter = geckoMemoryTable.find(src);
+	const size_t ds = iter->second.dataSize;
+
+	if(is_host) {
+		memcpy(dest, src, ds * src_count);
+	}
+#ifdef CUDA_ENABLED
+	else {
+		cudaMemcpy(dest, src, ds * src_count, cudaMemcpyDefault);
+	}
+#endif
+
+	return GECKO_SUCCESS;
+}
+
+GeckoError geckoMemMove(void **addr, char *location) {
+	geckoInit();
+
+	const auto iter = geckoMemoryTable.find(*addr);
+	if(iter == geckoMemoryTable.end()) {
+		fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", *addr);
+		exit(1);
+	}
+
+	void *temp;
+	const GeckoMemory mem = iter->second;
+
+	geckoMemoryDeclare((void**) &temp, mem.dataSize, mem.count, location, mem.distance, mem.distance_level, mem.allocType);
+	geckoMemCpy(temp, 0, mem.count, *addr, 0, mem.count);
+	bool is_dummy = mem.is_dummy;
+	geckoFree(*addr);
+
+	*addr = temp;
+	geckoMemoryTable[*addr].is_dummy = is_dummy;
+
+	return GECKO_SUCCESS;
+}
+
+GeckoError geckoMemRegister(void *addr, int start, size_t count, size_t dataSize, char *location) {
+	geckoInit();
+
+	GeckoMemory variable;
+
+	variable.dataSize = dataSize;
+	variable.count = count;
+	variable.loc = string(location);
+	GeckoLocation *pLocation = GeckoLocation::find(variable.loc);
+	if(pLocation == NULL) {
+		fprintf(stderr, "===GECKO %s (%d): Unable to find the location (%s)\n", __FILE__, __LINE__, location);
+		exit(1);
+	}
+	variable.loc_ptr = (GeckoLocation*) pLocation;
+
+	variable.address = addr;
+
+	geckoMemoryTable[variable.address] = variable;
+
+	return GECKO_SUCCESS;
+}
+
+GeckoError geckoMemUnregister(void *addr) {
+	geckoInit();
+
+	GeckoLocation *g_loc;
+	GeckoLocationArchTypeEnum type;
+
+	const auto iter = geckoMemoryTable.find(addr);
+	if(iter == geckoMemoryTable.end()) {
+		fprintf(stderr, "===GECKO: Unable to find memory '%p'.\n", addr);
+		exit(1);
+	}
+
+	string &loc = iter->second.loc;
+	g_loc = GeckoLocation::find(loc);
+	if(g_loc == NULL) {
+		fprintf(stderr, "===GECKO: Unable to find location '%s'.\n", loc.c_str());
+		exit(1);
+	}
 
 	iter->second.address = NULL;
 	iter->second.allocated = false;

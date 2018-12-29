@@ -24,10 +24,15 @@
 #ifndef __GECKO_RUNTIME_H__
 #define __GECKO_RUNTIME_H__
 
+#ifdef __cplusplus
 #include <cstdlib>
+#endif
+
 #include <unordered_map>
 #include <omp.h>
 #include <openacc.h>
+
+#include <string.h>
 
 #include "geckoDataTypes.h"
 #include "geckoDataTypeGenerator.h"
@@ -55,8 +60,6 @@ GeckoError 	geckoInit();
 void 	   	geckoCleanup();
 
 
-void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev,
-								void **var_list);
 
 
 
@@ -66,6 +69,9 @@ void 	   	geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCou
  * the array A as following: A[0] ... A[n/4] is assigned to device 0, A[n/4+1] ... A[2*n/4] to device 1, and so on.
  * However, the data type should be defined among "gecko_<data-type>" types, like gecko_double for "double" variables
  * and gecko_long for "long" variables.
+ *
+ * Almost deprecated!
+ *
  */
 GeckoError 	geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location,
 											GeckoDistanceTypeEnum distance);

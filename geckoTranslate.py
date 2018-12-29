@@ -10,6 +10,7 @@ pragma_prefix_funcname 		= "gecko"
 
 
 preserveOriginalCodeAsComment = False
+autoGenerateACCPragmas = True
 
 
 class SourceFile(object):
@@ -28,7 +29,14 @@ class SourceFile(object):
 		self.exec_pol = ""
 		self.exec_pol_type = ""
 		self.exec_pol_option = ""
-		self.at = ""
+		self.at = '\"\"'
+
+		self.gang = False
+		self.gang_count = -1
+		self.vector = False
+		self.vector_count = -1
+		self.kernels = False
+		self.reduction_list = list()
 
 
 	def processLocationType(self, keywords, lineNumber):
@@ -197,6 +205,17 @@ class SourceFile(object):
 		varToFree = ""
 		varToFreeObj = ""
 		distance = ""
+		distance_level = -1					# one-based index (starts from 1)
+		distance_alloc_type = ""			# auto or realloc?
+		copy_op = False
+		move_var = ""
+		register_var = ""
+		unregister_var = ""
+		loc_kw = ""
+		from_var = ""
+		to_var = ""
+		is_auto = False 
+		is_realloc = False
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
@@ -212,10 +231,29 @@ class SourceFile(object):
 				varToFree = k[1][:-1]
 			elif k[0] == "freeobj":
 				varToFreeObj = k[1][:-1]
+			elif k[0] == "register":
+				register_var = k[1][:-1]
+			elif k[0] == "unregister":
+				unregister_var = k[1][:-1]
+			elif k[0] == "loc":
+				loc_kw = k[1][:-1]
+			elif k[0] == "copy":
+				copy_op = True
+			elif k[0] == "move":
+				move_var = k[1][:-1]
+			elif k[0] == "from":
+				from_var = k[1][:-1]
+			elif k[0] == "to":
+				to_var = k[1][:-1]
+			elif k[0] == "auto":
+				is_auto = True
+			elif k[0] == "realloc":
+				is_realloc = True
 
 			i += 1
 
 
+		# Taking care of freeing a variable
 		if varToFree != "":
 			varList = varToFree.split(",")
 			line = ""
@@ -231,38 +269,110 @@ class SourceFile(object):
 					line += "%s.freeMem();\n" % (v)
 			return line
 
-		name_list = name.strip().split("[")
-		if len(name_list) == 1:
-			name = name_list[0]
-			count = "1"
-		elif len(name_list) != 2:
-			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
-			exit(1)	
-		else:	
-			name = name_list[0]
-			prop = name_list[1][:-1]
-			prop = prop.split(":")
-			if len(prop) != 2:
-				print "Line: %d - Cannot extract length of variable %s as in (%s)" % (lineNumber, name, ' '.join(prop))
-				exit(1)
-			count = prop[1]
 
-		distance = distance.upper()
+		# Taking care of copying a variable
+		if copy_op:
+			from_var_result = gREU.parseVariableString(from_var)
+			if from_var_result is None:
+				print "Line: %d - Unable to extract variable name and its corresponding range for '%s' keyword." % (lineNumber, 'from')
+				exit(1)
+			to_var_result = gREU.parseVariableString(to_var)
+			if to_var_result is None:
+				print "Line: %d - Unable to extract variable name and its corresponding range for '%s' keyword." % (lineNumber, 'to')
+				exit(1)
+			line = '%sMemCpy(%s, %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, to_var_result[0], to_var_result[1], to_var_result[2], from_var_result[0], from_var_result[1], from_var_result[2])
+			return line
+
+
+		# Taking care of moving variable around
+		if move_var != "":
+			if to_var == "":
+				print "Line: %d - Unable to extract destination location." % (lineNumber)
+				exit(1)
+			line = '%sMemMove((void**) &%s, %s);\n' % (pragma_prefix_funcname, move_var, to_var)
+			return line
+
+
+		# Taking care of registering variables
+		if register_var != "":
+			register_var_result = gREU.parseVariableString(register_var)
+			if register_var_result is None:
+				print "Line: %d - Unable to extract variable name and its corresponding range for '%s' keyword." % (lineNumber, 'register')
+				exit(1)
+			if loc_kw == "":
+				print "Line: %d - Unable to extract destination location." % (lineNumber)
+				exit(1)
+			if _type == "":
+				print "Line: %d - Unable to extract the type." % (lineNumber)
+				exit(1)
+
+			line = '%sMemRegister(%s, %s, %s, sizeof(%s), %s);\n' % (pragma_prefix_funcname, register_var_result[0], register_var_result[1], register_var_result[2], _type, loc_kw)
+			return line
+
+		# Taking care of unregistering variables
+		if unregister_var != "":
+			line = '%sMemUnregister(%s);\n' % (pragma_prefix_funcname, unregister_var)
+			return line
+
+
+		# Taking care of distances
+		if is_auto and is_realloc:
+			print "Line: %d - 'auto' and 'realloc' should not be set simultaneously." % (lineNumber)
+			exit(1)
+		# default behavior is "realloc"
+		if not is_auto and not is_realloc:
+			is_realloc = True
+
+		if is_auto:
+			distance_alloc_type = "GECKO_DISTANCE_ALLOC_TYPE_AUTO"
+		elif is_realloc:
+			distance_alloc_type = "GECKO_DISTANCE_ALLOC_TYPE_REALLOC"
+
 		if distance == "":
 			distance = "GECKO_DISTANCE_NOT_SET"
-		elif distance in ["NEAR", "FAR"]:
-			distance = "GECKO_DISTANCE_%s" % (distance)
+		elif "near" in distance:
+			distance = "GECKO_DISTANCE_NEAR"
+		elif "far" in distance:
+			dist_list = distance.split(":")
+			distance = "GECKO_DISTANCE_FAR"
+			distance_level = 1
+			if len(dist_list) > 1:
+				distance_level = dist_list[1]
 		else:
 			distance = "GECKO_DISTANCE_UNKNOWN"
 
 
 
+		# name_list = name.strip().split("[")
+		# if len(name_list) == 1:
+		# 	name = name_list[0]
+		# 	count = "1"
+		# elif len(name_list) != 2:
+		# 	print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
+		# 	exit(1)	
+		# else:	
+		# 	name = name_list[0]
+		# 	prop = name_list[1][:-1]
+		# 	prop = prop.split(":")
+		# 	if len(prop) != 2:
+		# 		print "Line: %d - Cannot extract length of variable %s as in (%s)" % (lineNumber, name, ' '.join(prop))
+		# 		exit(1)
+		# 	count = prop[1]
+		name_list = gREU.parseVariableString(name)
+		if name is None:
+			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
+			exit(1)
+		name = name_list[0]
+		count = name_list[2]
+
+
 		if "gecko_" in _type:
-			line = '%sMemoryInternalTypeDeclare(%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type[6:], count, loc, distance)
+			line = '%sMemoryInternalTypeDeclare(%s, sizeof(%s), %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type[6:], count, loc, distance, distance_level, distance_alloc_type)
 		else:
-			line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance)
+			line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance, distance_level, distance_alloc_type)
 
 		return line
+
 
 	def processRegion(self, keywords, lineNumber):
 		at = ""
@@ -272,6 +382,12 @@ class SourceFile(object):
 		variable_list_internal = ""
 		end = False
 		wait = False
+		gang = False
+		gang_count = -1
+		vector = False
+		vector_count = -1
+		kernels = False
+		reduction_list = list()
 
 		i = 3
 		while i < len(keywords):
@@ -290,7 +406,22 @@ class SourceFile(object):
 				end = True
 			elif k[0] == "pause":
 				wait = True
+			elif k[0] == "gang":
+				gang = True
+				if len(k) > 1:
+					gang_count = int(k[1][:-1])
+			elif k[0] == "vector":
+				vector = True
+				if len(k) > 1:
+					vector_count = int(k[1][:-1])
+			elif k[0] == "kernels":
+				kernels = True
+			elif k[0] == "reduction":
+				reduction_list.append(k[1][:-1])
+
 			i += 1
+
+
 
 		if end:
 			self.parsing_region_state = -1
@@ -306,11 +437,30 @@ class SourceFile(object):
 			exit(1)
 
 
+		if (gang or vector) and kernels:
+			print "Line: %d - the 'kernels' contruct in OpenACC could not be utilized while 'gang' and 'vector' are chosen." % (lineNumber)
+			exit(1)
+
+
+
+		self.gang = gang
+		self.gang_count = gang_count
+		self.vector = vector
+		self.vector_count = vector_count
+		self.kernels = kernels
+		self.reduction_list = reduction_list
+
+
 		self.var_list = var_list
 		self.variable_list_internal = variable_list_internal
 
+
 		self.exec_pol = exec_pol
-		self.at = at
+		if at == "":
+			self.at = '""'
+		else:
+			self.at = at
+
 
 		if "range" in exec_pol:
 			pol = gREU.parseRangePolicy("range", exec_pol)
@@ -343,7 +493,10 @@ class SourceFile(object):
 
 
 
-		self.parsing_region_state = 1
+		if autoGenerateACCPragmas:
+			self.parsing_region_state = 2
+		else:
+			self.parsing_region_state = 1
 
 		return ""
 
@@ -392,28 +545,39 @@ class SourceFile(object):
 
 
 	def generateVarLine(self):
-		varList = self.var_list.split(",")
+		temp_varList = self.var_list.split(",")
 		varList2 = []
-		for v in varList:
+		for v in temp_varList:
 			v = v.strip()
 			if v == "":
 				continue
 			varList2.append(v)
 
-		varList = varList2
+		temp_varList = varList2
 
-		var_line = ""
-		var_line += "int var_count = %d;\n" % (len(varList))
-		if len(varList) == 0:
-			var_line += "void **var_list = NULL;\n"
+		var_line_before = ""
+		var_line_after = ""
+		var_line_end = ""
+
+		var_line_before += "int var_count = %d;\n" % (len(temp_varList))
+		if len(temp_varList) == 0:
+			var_line_before += "void **var_list = NULL;\n"
+			var_line_before += "void **old_var_list = NULL;\n"
 		else:
-			var_line += "void **var_list = (void **) malloc(sizeof(void*) * var_count);\n"
-			var_line += "for(int __v_id=0;__v_id<var_count;__v_id++) {\n"
-			for v in varList:
-				var_line += "var_list[__v_id] = %s;\n" % (v)
-			var_line += "}\n"
+			var_line_before += "void **var_list = (void **) malloc(sizeof(void*) * var_count);\n"
+			var_line_before += "void **old_var_list = (void **) malloc(sizeof(void*) * var_count);\n"
+			# var_line_before += "int __v_id = 0;\n"
+			# for v in temp_varList:
+			# 	var_line_before += "var_list[__v_id] = %s;\n" % (v)
+			# 	var_line_before += "__v_id++;\n"
+			for v_index, v in enumerate(temp_varList):
+				var_line_before += "old_var_list[%d] = var_list[%d] = %s;\n" % (v_index, v_index, v)
+				# var_line_after += "%s = var_list[%d];\n" % (v, v_index)
+				var_line_after += "memcpy((void**) &%s, &var_list[%d], sizeof(void*));\n" % (v, v_index)
+				# var_line_end += "%s = old_var_list[%d];\n" % (v, v_index)
+				var_line_end += "memcpy((void**) &%s, &old_var_list[%d], sizeof(void*));\n" % (v, v_index)
 
-		return var_line
+		return var_line_before, var_line_after, var_line_end
 
 
 	def generateVarListInternalClause(self):
@@ -436,9 +600,37 @@ class SourceFile(object):
 		return var_clause
 
 
+
+	def generatePragmaAccClause(self):
+		if self.kernels:
+			return "#pragma acc kernels"
+
+
+		pragma = "#pragma acc parallel loop "
+		if self.gang:
+			pragma += "gang "
+			if self.gang_count > 0:
+				pragma += "num_gangs(%d) " % (self.gang_count)
+
+		if self.vector:
+			pragma += "vector "
+			if self.vector_count > 0:
+				pragma += "vector_length(%d) " % (self.vector_count)
+
+		reduction_stmt = ""
+		for reduc in self.reduction_list:
+			reduction_stmt += " reduction(%s) " % (reduc)
+		pragma += reduction_stmt
+
+		return pragma, reduction_stmt
+
+
+
 	def parseRegionKernel(self, keywords, lineNumber):
 		if self.parsing_region_state == -1:
 			# we are dealing with the OpenACC pragma line after our directive
+
+			var_list_line_before, var_list_line_after, var_list_line_end = self.generateVarLine()
 
 			ret = ""
 			# ret  += "#pragma acc wait(devIndex)\ngeckoUnsetBusy(dev[devIndex]);\n"
@@ -446,7 +638,8 @@ class SourceFile(object):
 			ret += "} // end of if(dev[devIndex]!=NULL)\n"
 			ret += "} // end of OpenMP pragma \n"
 			ret += "} // end of checking: err != GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
-			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_list);\n"
+			ret += var_list_line_end
+			ret += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_count, var_list, old_var_list);\n"
 			ret += "}\n"
 
 			self.parsing_region_state = 0
@@ -459,7 +652,7 @@ class SourceFile(object):
 			line = ' '.join(keywords)
 			restOfPragma = gREU.parsePragmaACC(line)
 			if restOfPragma is None or restOfPragma == "":
-				print "Line: %d - After '#pragma %s', an OpenACC pragma should exist." % (lineNumber, pragma_prefix)
+				print "Line: %d - After '#pragma %s', an OpenACC pragma should exist." % (lineNumber, pragma_keyword)
 				exit(1)
 
 			self.parsing_region_state = 2
@@ -505,17 +698,26 @@ class SourceFile(object):
 			range_line_begin, range_line_end = self.generateRangeLine()
 
 
-			var_list_line = self.generateVarLine()
+			var_list_line_before, var_list_line_after, var_list_line_end = self.generateVarLine()
 			var_list_internal_clause = self.generateVarListInternalClause()
+
+
+			reduction_stmt_omp = ""
+
+			# The following line corresponds to the new approach: no "#pragma acc" by the user! 
+			# The "#pragma gecko region" will generate it!
+			if autoGenerateACCPragmas:
+				self.pragmaForRegion, reduction_stmt_omp = self.generatePragmaAccClause()
 
 
 			line = '{\n'
 			line += "int *beginLoopIndex=NULL, *endLoopIndex=NULL, jobCount, devCount, devIndex;\n"
 			line += "GeckoLocation **dev = NULL;\n"
 			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
-			line += var_list_line
+			line += var_list_line_before
 			line += 'GeckoError err = %sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
 					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign)
+			line += var_list_line_after
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
 #			if self.exec_pol in ['"range"', '"percentage"']:
@@ -526,7 +728,7 @@ class SourceFile(object):
 			line += "jobCount = devCount;\n"
 			line += "if(err != GECKO_ERR_TOTAL_ITERATIONS_ZERO) {\n"
 			# line += "for(devIndex=0;devIndex < jobCount;devIndex++) \n"
-			line += "#pragma omp parallel num_threads(jobCount)\n"
+			line += "#pragma omp parallel num_threads(jobCount) %s\n" % (reduction_stmt_omp)
 			line += "{\n"
 			line += "int devIndex = omp_get_thread_num();\n"
 			# line += "%sSetDevice(dev[devIndex]);\n" % (pragma_prefix_funcname)
@@ -534,7 +736,12 @@ class SourceFile(object):
 			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
-			line += "%s deviceptr(%s) async(asyncID) copyin(%s)\n" % (self.pragmaForRegion, self.var_list, var_list_internal_clause)
+			line += "%s deviceptr(%s) async(asyncID) " % (self.pragmaForRegion, self.var_list)
+			if var_list_internal_clause == "":
+				line += "\n"
+			else:
+				line += " copyin(%s)\n" % (var_list_internal_clause)
+
 			if datatype is None:
 				datatype = ""
 

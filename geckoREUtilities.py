@@ -66,3 +66,16 @@ def parseRangePolicy(policy_type, policy):
 	if match is None:
 		return None
 	return match.group('ranges')
+
+
+def parseVariableString(var_str):
+	pattern = r'(?P<var_name>[0-9a-zA-Z_+=\-*/]+)\[(?P<init_val>[0-9a-zA-Z_+=\-*/]+):(?P<count>[0-9a-zA-Z_+=\-*/]+)\]'
+	match = re.search(pattern, var_str)
+	if match == None:
+		return None
+
+	var_name  = match.group('var_name')
+	init_val  = match.group('init_val')
+	count  = match.group('count')
+
+	return var_name, init_val, count

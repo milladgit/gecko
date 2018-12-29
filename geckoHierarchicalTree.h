@@ -69,6 +69,8 @@ public:
 
 	static unordered_map<string, GeckoLocation*> getAllLocations();
 
+	static void dumpTable();
+
 };
 
 

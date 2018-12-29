@@ -5,6 +5,8 @@
 #define __GECKO_DATA_TYPES_H__
 
 #include <string>
+#include <unordered_map>
+
 using namespace std;
 
 typedef enum {
@@ -22,6 +24,8 @@ typedef enum {
 	GECKO_SUCCESS = 0,
 	GECKO_ERR_FAILED,
 	GECKO_ERR_TOTAL_ITERATIONS_ZERO,
+	GECKO_ERR_MEM_ADDRESS_NOT_FOUND,
+	GECKO_ERR_LOCATION_NOT_FOUND,
 	GECKO_ERR_UNKNOWN,
 	GECKO_ERR_LEN
 } GeckoError;
@@ -62,6 +66,14 @@ typedef enum {
 } GeckoDistanceTypeEnum;
 
 
+typedef enum {
+	GECKO_DISTANCE_ALLOC_TYPE_NOT_SET = 0,
+	GECKO_DISTANCE_ALLOC_TYPE_REALLOC,
+	GECKO_DISTANCE_ALLOC_TYPE_AUTO,
+	GECKO_DISTANCE_ALLOC_TYPE_LEN
+} GeckoDistanceAllocationTypeEnum;
+
+
 class GeckoCUDAProp {
 public:
 	int deviceCountTotal;
@@ -86,31 +98,44 @@ public:
 //	bool allocated;
 //} GeckoVariable;
 
+class GeckoLocation;
+
+
 class GeckoMemory {
 public:
 	void *address;
 	size_t dataSize;
 	size_t count;
 	string loc;
-	GeckoMemoryDistribPolicy distributionType;
+	GeckoLocation *loc_ptr;
+//	GeckoMemoryDistribPolicy distributionType;
 
 	bool allocated;
 	GeckoDistanceTypeEnum distance;
+	int distance_level;
+	GeckoDistanceAllocationTypeEnum allocType;
+	bool is_dummy;
+	void *real_address;
 
 	string originatedFrom;      // Name of the location that variable was originated from
+
+//	unordered_map<void*, string> memoryToLocMap;
 
 	GeckoMemory() :
 			address(NULL),
 			dataSize(0),
 			count(0),
-			distributionType(GECKO_DISTRIB_NONE),
+//			distributionType(GECKO_DISTRIB_NONE),
 			allocated(false),
-			distance(GECKO_DISTANCE_NOT_SET)
+			distance(GECKO_DISTANCE_NOT_SET),
+			loc_ptr(NULL),
+			is_dummy(false),
+			distance_level(-1),
+			allocType(GECKO_DISTANCE_ALLOC_TYPE_NOT_SET),
+			real_address(NULL)
 	{};
 };
 
-
-class GeckoLocation;
 
 class __geckoLocationIterationType {
 public:

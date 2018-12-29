@@ -35,14 +35,16 @@ using namespace std;
 
 //class GeckoAddressInfo {
 //public:
-//	void    *p;
+//	void    *ptr;
 //	size_t   total_count;
 //	size_t   startingIndex;
 //
-//	GeckoAddressInfo() : p(NULL), total_count(0), startingIndex(0) {}
-//	GeckoAddressInfo(void *p, size_t total_count, size_t startingIndex) : p(p), total_count(total_count), startingIndex(startingIndex) {}
+//	explicit
+//	GeckoAddressInfo(void *p=NULL, size_t total_count=0, size_t startingIndex=0) :
+//				ptr(p), total_count(total_count), startingIndex(startingIndex)
+//				{}
 //};
-
+//
 //static unordered_map<void*, GeckoAddressInfo> geckoAddressTable;
 
 
@@ -96,6 +98,9 @@ GeckoError geckoInit() {
 
 	// for 'any' execution policy
 	srand (time(NULL));
+
+	// for nested OpenMP regions in case we target Multicore architectures
+	omp_set_nested(true);
 
 	geckoTreeHead = NULL;
 
@@ -163,20 +168,6 @@ void geckoCleanup() {
 
 
 
-void geckoFreeRegionTemp(int *beginLoopIndex, int *endLoopIndex, int devCount, GeckoLocation **dev, void **var_list) {
-	if(beginLoopIndex)
-		free(beginLoopIndex);
-	if(endLoopIndex)
-		free(endLoopIndex);
-
-	if(dev)
-		free(dev);
-
-	if(var_list)
-		free(var_list);
-}
-
-
 
 GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, size_t count, char *location,
 											GeckoDistanceTypeEnum distance) {
@@ -225,4 +216,6 @@ GeckoError geckoMemoryInternalTypeDeclare(gecko_type_base &Q, size_t dataSize, s
 			        geckoGetLocationTypeName(type));
 			exit(1);
 	}
+
+	return GECKO_SUCCESS;
 }
