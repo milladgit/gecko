@@ -25,9 +25,16 @@ string &trim(string &str) {
 	str.erase(str.find_last_not_of(" \t\n")+1);         //surfixing spaces
 	return str;
 }
+
 inline
 string &toUpper(string &str) {
 	std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+	return str;
+}
+
+inline
+string &toLower(string &str) {
+	std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 	return str;
 }
 

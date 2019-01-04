@@ -54,7 +54,7 @@ string geckoGetLocationTypeNameStr(GeckoLocationArchTypeEnum deviceType) {
 }
 
 GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
-									int numCores, const char *mem_size, const char *mem_type) {
+									int numCores, const char *mem_size, const char *mem_type, float bandwidth_GBps) {
 	geckoInit();
 
 	GeckoLocationType d{};
@@ -63,6 +63,7 @@ GeckoError geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum device
 	d.numCores = numCores;
 	d.mem_size = (char*)mem_size;
 	d.mem_type = (char*)mem_type;
+	d.bandwidth_GBps = bandwidth_GBps;
 	listOfAvailLocationTypes[string(name)] = d;
 #ifdef INFO
 	fprintf(stderr, "===GECKO: Defining location type \"%s\" as %s \n", name, geckoGetLocationTypeName(deviceType));

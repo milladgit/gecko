@@ -13,6 +13,16 @@ preserveOriginalCodeAsComment = False
 autoGenerateACCPragmas = True
 
 
+def isFloat(stringInput):
+	try:
+		f = float(stringInput)
+		return True, f
+	except ValueError:
+		return False, 0
+
+
+
+
 class SourceFile(object):
 	"""docstring for SourceFile"""
 	def __init__(self, filename):
@@ -38,6 +48,8 @@ class SourceFile(object):
 		self.kernels = False
 		self.reduction_list = list()
 
+		self.intensity = ""
+
 
 	def processLocationType(self, keywords, lineNumber):
 		name = "-"
@@ -46,6 +58,7 @@ class SourceFile(object):
 		num_cores = "0"
 		mem_size = '"-"'
 		mem_type = '"-"'
+		bandwidth = ""
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
@@ -78,9 +91,23 @@ class SourceFile(object):
 				else:
 					print "Line %d - Error in kind of locationtype - Unknown mem clause format (%s)" % (lineNumber, mem_text)
 					exit(1)
+			elif k[0] == "bandwidth":		# "bandwidth" and "bw" are possible and mean the same
+				bandwidth = k[1][:-1]
+			elif k[0] == "bw":
+				bandwidth = k[1][:-1]
+
 			i += 1
 
-		line = '%sLocationtypeDeclare(%s, %s_%s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, pragma_prefix, family, micro_arch, num_cores, mem_size, mem_type)
+
+		bandwidth_is_float, bandwidth_val_float = isFloat(bandwidth)
+		if bandwidth_is_float:
+			bandwidth = bandwidth_val_float
+		else:
+			if bandwidth == '':
+				bandwidth = -1
+
+
+		line = '%sLocationtypeDeclare(%s, %s_%s, %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, pragma_prefix, family, micro_arch, num_cores, mem_size, mem_type, bandwidth)
 		return line
 
 
@@ -388,6 +415,7 @@ class SourceFile(object):
 		vector_count = -1
 		kernels = False
 		reduction_list = list()
+		intensity = ""
 
 		i = 3
 		while i < len(keywords):
@@ -418,6 +446,8 @@ class SourceFile(object):
 				kernels = True
 			elif k[0] == "reduction":
 				reduction_list.append(k[1][:-1])
+			elif k[0] == "intensity":
+				intensity = k[1][:-1]
 
 			i += 1
 
@@ -454,12 +484,19 @@ class SourceFile(object):
 		self.var_list = var_list
 		self.variable_list_internal = variable_list_internal
 
+		intensity_is_float, intensity_val_float = isFloat(intensity)
+		if intensity_is_float:
+			intensity = intensity_val_float
+		else:
+			if intensity == '':
+				intensity = -1
+		self.intensity = intensity
+
 
 		self.exec_pol = exec_pol
-		if at == "":
-			self.at = '""'
-		else:
-			self.at = at
+		if at == '':
+			at = '""'
+		self.at = at
 
 
 		if "range" in exec_pol:
@@ -715,8 +752,8 @@ class SourceFile(object):
 			line += "GeckoLocation **dev = NULL;\n"
 			line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
 			line += var_list_line_before
-			line += 'GeckoError err = %sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list);\n' \
-					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign)
+			line += 'GeckoError err = %sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list, %s);\n' \
+					 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign, self.intensity)
 			line += var_list_line_after
 			line += range_line_end
 			# line += "geckoRegionDistribute(&devCount, beingID, endID);\n"
@@ -1147,6 +1184,7 @@ def main():
 	print listOfFiles
 
 	for f in listOfFiles:
+		print "Processing file:", f
 		src = SourceFile(f)
 		src.processFile()
 		os.system("astyle output_%s" % (f))

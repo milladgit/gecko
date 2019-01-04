@@ -37,6 +37,7 @@ public:
 	int numCores;
 	char *mem_size;
 	char *mem_type;
+	float bandwidth_GBps;
 };
 
 typedef enum {

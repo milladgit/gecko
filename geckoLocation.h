@@ -11,7 +11,7 @@ const char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType);
 string 		geckoGetLocationTypeNameStr(GeckoLocationArchTypeEnum deviceType);
 
 GeckoError 	geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
-									   int numCores, const char *mem_size, const char *mem_type);
+									   int numCores, const char *mem_size, const char *mem_type, float bandwidth_GBps);
 GeckoError 	geckoLocationDeclare(const char *name, const char *_type, int all, int start, int count);
 
 GeckoError 	geckoSetDevice(GeckoLocation *device);
