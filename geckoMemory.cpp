@@ -189,7 +189,6 @@ void geckoExtractChildrenFromLocation(GeckoLocation *loc, vector<__geckoLocation
 
 
 
-inline
 GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArchTypeEnum &output_type) {
 /*
  * Following the memory allocation in the paper.

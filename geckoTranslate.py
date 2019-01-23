@@ -854,7 +854,6 @@ class SourceFile(object):
 					pragmaACC += "vector_length(%d) " % (self.vector_count)
 
 
-		pragmaACC += reduction_stmt + " " + presentClause + " async(asyncID) "
 		pragmaACC += "%s %s async(asyncID) %s %s" % (reduction_stmt, presentClause, collapse, independent_loop)
 
 		pragmaOMP = "#pragma omp parallel for " + reduction_stmt
