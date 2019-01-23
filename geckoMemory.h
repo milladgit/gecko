@@ -19,7 +19,7 @@ void* 		geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *devic
 GeckoError 	geckoFreeDistanceRealloc(int var_count, void **var_list);
 
 GeckoError 	geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance,
-							  int distance_level, GeckoDistanceAllocationTypeEnum allocationType);
+							  int distance_level, GeckoDistanceAllocationTypeEnum allocationType, char *filename);
 GeckoError 	geckoFree(void *ptr);
 
 

@@ -7,7 +7,7 @@ void print(double *p) {
 
 int main(int argc, char **argv) {
 
-	#pragma gecko config env
+	#pragma gecko config file("gecko.conf")
  
 // 	#pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB") 
 // 	#pragma gecko loctype name("tesla") kind("CC3.0", "Volta") mem("4GB")
@@ -92,8 +92,8 @@ int main(int argc, char **argv) {
 	devices_nv = devices_host = 0;
 	// #pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
 	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
-	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,20,20,30]") variable_list(Z)
-	#pragma acc parallel loop reduction(+:devices_nv) reduction(+:devices_host)
+	// #pragma acc parallel loop reduction(+:devices_nv) reduction(+:devices_host)
+	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,20,20,30]") variable_list(Z) reduction(+:devices_nv) reduction(+:devices_host)
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff * i;
 

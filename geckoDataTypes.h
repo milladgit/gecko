@@ -16,6 +16,7 @@ typedef enum {
 	GECKO_X64,
 	GECKO_NVIDIA,
 	GECKO_UNIFIED_MEMORY,
+	GECKO_PERMANENT_STORAGE,
 	GECKO_UNKOWN,
 	GECKO_DEVICE_LEN
 } GeckoLocationArchTypeEnum;
@@ -104,21 +105,24 @@ class GeckoLocation;
 
 class GeckoMemory {
 public:
-	void *address;
-	size_t dataSize;
-	size_t count;
-	string loc;
+	void 	*address;
+	size_t 	dataSize;
+	size_t 	count;
+	string 	loc;
 	GeckoLocation *loc_ptr;
 //	GeckoMemoryDistribPolicy distributionType;
 
-	bool allocated;
+	bool 	allocated;
 	GeckoDistanceTypeEnum distance;
-	int distance_level;
+	int 	distance_level;
 	GeckoDistanceAllocationTypeEnum allocType;
-	bool is_dummy;
-	void *real_address;
+	bool 	is_dummy;
+	void 	*real_address;
 
-	string originatedFrom;      // Name of the location that variable was originated from
+	string 	originatedFrom;      // Name of the location that variable was originated from
+
+	string 	filename_permanent;	// Filename for permanent memories
+	int 	file_desc_id;
 
 //	unordered_map<void*, string> memoryToLocMap;
 
@@ -133,7 +137,9 @@ public:
 			is_dummy(false),
 			distance_level(-1),
 			allocType(GECKO_DISTANCE_ALLOC_TYPE_NOT_SET),
-			real_address(NULL)
+			real_address(NULL),
+			filename_permanent(""),
+			file_desc_id(-1)
 	{};
 };
 

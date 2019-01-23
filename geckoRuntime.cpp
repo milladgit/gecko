@@ -100,7 +100,7 @@ GeckoError geckoInit() {
 	srand (time(NULL));
 
 	// for nested OpenMP regions in case we target Multicore architectures
-	omp_set_nested(true);
+	omp_set_nested(1);
 
 	geckoTreeHead = NULL;
 

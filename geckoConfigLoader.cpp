@@ -13,7 +13,7 @@ using namespace std;
 
 
 extern GeckoError 	geckoLocationtypeDeclare(char *name, GeckoLocationArchTypeEnum deviceType, const char *microArch,
-					int numCores, const char *mem_size, const char *mem_type);
+					int numCores, const char *mem_size, const char *mem_type, float bandwidth_GBps);
 extern GeckoError 	geckoLocationDeclare(const char *name, const char *_type, int all, int start, int count);
 extern GeckoError 	geckoHierarchyDeclare(char operation, const char *child_name, const char *parent, int all, int start,
 					int count);
@@ -41,7 +41,7 @@ void __geckoConfigFileLoadFile(char *filename, vector< vector<string> > &lines) 
 
 inline
 void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
-	string name, kind, num_cores, mem_size;
+	string name, kind, num_cores, mem_size, bw_str, filename;
 	for(int j=1;j<fields.size();j++) {
 		vector<string> values;
 		__geckoGetFields((char*)fields[j].c_str(), values, ",\n");
@@ -53,13 +53,20 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 			num_cores = values[1];
 		else if(values[0].compare("mem") == 0)
 			mem_size = values[1];
+		else if(values[0].compare("bw") == 0 || values[0].compare("bandwidth") == 0 )
+			bw_str = values[1];
 	}
 
 	trim(kind);
 	toUpper(kind);
 	trim(num_cores);
 
-	if(name.compare("") == 0 || kind.compare("") == 0) {
+	float bw = strtof(bw_str.c_str(), NULL);
+
+	if(bw == 0.0f)
+		bw = -1;
+
+	if(name.compare("") == 0 || kind.compare("") == 0 || bw == 0.0f) {
 		fprintf(stderr, "===GECKO: Error in declaring location type within the config file: name(%s) - "
 						"kind(%s) - num_cores(%s) - mem(%s)\n", name.c_str(), kind.c_str(), num_cores.c_str(), mem_size.c_str());
 		exit(1);
@@ -74,6 +81,8 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 		deviceType = GECKO_NVIDIA;
 	else if(kind.compare("UNIFIED_MEMORY") == 0)
 		deviceType = GECKO_UNIFIED_MEMORY;
+	else if(kind.compare("PERMANENT_STORAGE") == 0)
+		deviceType = GECKO_PERMANENT_STORAGE;
 	else
 		deviceType = GECKO_UNKOWN;
 
@@ -81,7 +90,7 @@ void __geckoLoadConfFileDeclLocType(vector<string> &fields) {
 	if(num_cores.compare("") != 0)
 		num_cores_int = stoi(num_cores, NULL, 10);
 
-	geckoLocationtypeDeclare((char*)name.c_str(), deviceType, "", num_cores_int, mem_size.c_str(), "");
+	geckoLocationtypeDeclare((char*)name.c_str(), deviceType, "", num_cores_int, mem_size.c_str(), "", bw);
 
 }
 

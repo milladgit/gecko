@@ -44,6 +44,8 @@ const char* geckoGetLocationTypeName(GeckoLocationArchTypeEnum deviceType) {
 			return "X64";
 		case GECKO_NVIDIA:
 			return "NVIDIA";
+		case GECKO_PERMANENT_STORAGE:
+			return "Permanent Storage";
 		default:
 			return "UNKNOWN";
 	}

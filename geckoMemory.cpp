@@ -13,6 +13,12 @@
 #include <chrono>
 #include <thread>
 
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
 using namespace std;
 
 #ifdef CUDA_ENABLED
@@ -25,6 +31,55 @@ using namespace std;
 unordered_map<void*, GeckoMemory> geckoMemoryTable;
 
 
+void *__geckoPermanentAllocate(string &filename, size_t filesize, int &fd) {
+	size_t pagesize = (size_t) sysconf(_SC_PAGESIZE);
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Opening filename for Permanent Storage - filename: '%s'\n", filename.c_str());
+#endif
+
+	//Open file
+	fd = open(filename.c_str(), O_RDWR | O_CREAT, 0666);
+	if (fd == -1) {
+		fprintf(stderr, "===GECKO: Unable to open file for permanent storage for filename '%s'.\n", filename.c_str());
+		perror("open:");
+		exit(1);
+	}
+	ftruncate(fd, filesize);
+
+	//Execute mmap
+	void *mmappedData = mmap(0, filesize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fd, 0);
+	if(mmappedData == MAP_FAILED) {
+		fprintf(stderr, "===GECKO: Unable to mmap for filename '%s'.\n", filename.c_str());
+		exit(1);
+	}
+
+#ifdef CUDA_ENABLED
+	if (cudaSuccess != cudaHostRegister(mmappedData, filesize, cudaHostRegisterDefault)) {
+		fprintf(stderr, "===GECKO: Unable to register the mmapped memory with CUDA for filename '%s'.\n", filename.c_str());
+		exit(1);
+	}
+#endif
+
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Opening filename for Permanent Storage - filename: '%s' - file_desc: %d - Successfully opened file\n", filename.c_str(), fd);
+#endif
+
+	return mmappedData;
+}
+
+
+void __geckoPermanentFree(void *mmappedData, size_t filesize, int file_descr) {
+
+	int rc = munmap(mmappedData, filesize);
+	if(rc != 0) {
+		fprintf(stderr, "===GECKO: Unable to unmap.\n");
+		perror("munmap:");
+		exit(1);
+	}
+	close(file_descr);
+}
+
 void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *device, GeckoMemory *var) {
 	void *addr = NULL;
 	size_t sz_in_byte = var->dataSize * var->count;
@@ -36,6 +91,8 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *device,
 		}
 	}
 
+	int fd = -1;
+
 	switch(type) {
 		case GECKO_X32:
 		case GECKO_X64:
@@ -44,28 +101,34 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *device,
 			fprintf(stderr, "===GECKO: MALLOC - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
 #endif
 			break;
+
+
 #ifdef CUDA_ENABLED
 		case GECKO_NVIDIA:
 			acc_set_device_num(device->getLocationIndex(), acc_device_nvidia);
 			GECKO_CUDA_CHECK(cudaMalloc(&addr, sz_in_byte));
-#ifdef INFO
+	#ifdef INFO
 			fprintf(stderr, "===GECKO: CUDAMALLOC - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
-#endif //INFO
+	#endif //INFO
 			break;
-#endif
 
 		case GECKO_UNIFIED_MEMORY:
-#ifdef CUDA_ENABLED
 			GECKO_CUDA_CHECK(cudaMallocManaged(&addr, sz_in_byte));
-#ifdef INFO
+	#ifdef INFO
 			fprintf(stderr, "===GECKO: UVM ALLOCATION - location: %s - size: %d - addr: %p\n", var->loc.c_str(), sz_in_byte, addr);
-#endif  // INFO
+	#endif  // INFO
+			break;
 #else   // CUDA_ENABLED
+		case GECKO_NVIDIA:
+		case GECKO_UNIFIED_MEMORY:
 			fprintf(stderr, "===GECKO: CUDA APIs are required for unified memory allocation.\n");
 			exit(1);
-#endif  // CUDA_ENABLED
 			break;
+#endif  // CUDA_ENABLED
 
+		case GECKO_PERMANENT_STORAGE:
+			addr = __geckoPermanentAllocate(var->filename_permanent, sz_in_byte, fd);
+			break;
 
 		default:
 			fprintf(stderr, "=== GECKO: Unrecognized architecture for memory allocation - Arch: %s\n",
@@ -75,6 +138,7 @@ void* geckoAllocateMemory(GeckoLocationArchTypeEnum type, GeckoLocation *device,
 
 	var->address = addr;
 	var->allocated = true;
+	var->file_desc_id = fd;
 
 	return addr;
 }
@@ -130,6 +194,11 @@ GeckoError geckoMemoryAllocationAlgorithm(GeckoLocation *node, GeckoLocationArch
 /*
  * Following the memory allocation in the paper.
  */
+
+	if(node->getLocationType().type == GECKO_PERMANENT_STORAGE) {
+		output_type = GECKO_PERMANENT_STORAGE;
+		return GECKO_SUCCESS;
+	}
 
 	if(node->getChildren().size() == 0) {
 //		This node is a leaf node!
@@ -196,7 +265,7 @@ GeckoError geckoMemoryDistribution(int loc_count, GeckoLocation **loc_list, int 
 }
 
 GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *location, GeckoDistanceTypeEnum distance,
-		int distance_level, GeckoDistanceAllocationTypeEnum allocationType) {
+		int distance_level, GeckoDistanceAllocationTypeEnum allocationType, char *filename) {
 
 	geckoInit();
 
@@ -216,6 +285,11 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 	variable.distance = distance;
 	variable.distance_level = distance_level;
 	variable.allocType = allocationType;
+
+	if(filename == NULL)
+		variable.filename_permanent = string("");
+	else
+		variable.filename_permanent = string(filename);
 
 	if(distance == GECKO_DISTANCE_NEAR || distance == GECKO_DISTANCE_FAR) {
 		variable.is_dummy = true;
@@ -244,7 +318,16 @@ GeckoError geckoMemoryDeclare(void **v, size_t dataSize, size_t count, char *loc
 
 
 
-
+inline
+void __geckoFreeMemoryPerman(void *addr) {
+	auto iter = geckoMemoryTable.find(addr);
+	if(iter != geckoMemoryTable.end()) {
+		GeckoMemory &var = iter->second;
+		size_t sz_in_byte = var.dataSize * var.count;
+		__geckoPermanentFree(addr, sz_in_byte, var.file_desc_id);
+		var.file_desc_id = -1;
+	}
+}
 
 
 inline
@@ -262,12 +345,16 @@ void geckoFreeMemory(GeckoLocationArchTypeEnum type, void *addr, GeckoLocation *
 		case GECKO_NVIDIA:
 			acc_set_device_num(loc->getLocationIndex(), acc_device_nvidia);
 		case GECKO_UNIFIED_MEMORY:
-		GECKO_CUDA_CHECK(cudaFree(addr));
+			GECKO_CUDA_CHECK(cudaFree(addr));
 #ifdef INFO
 			fprintf(stderr, "===GECKO: CUDAFREE - location %s\n", loc->getLocationName().c_str());
 #endif
 			break;
 #endif
+
+		case GECKO_PERMANENT_STORAGE:
+			__geckoFreeMemoryPerman(addr);
+			break;
 
 		default:
 			fprintf(stderr, "=== GECKO: Unrecognized architecture to free memory - Arch: %s\n",
@@ -289,6 +376,7 @@ GeckoError __geckoFindLocationBasedOnPointer(void *ptr, GeckoLocationArchTypeEnu
 		return GECKO_ERR_LOCATION_NOT_FOUND;
 
 	geckoMemoryAllocationAlgorithm(g_loc, type);
+	*out_loc = g_loc;
 }
 
 GeckoError geckoFree(void *ptr) {
@@ -429,7 +517,8 @@ GeckoError geckoMemMove(void **addr, char *location) {
 	void *temp;
 	const GeckoMemory mem = iter->second;
 
-	geckoMemoryDeclare((void**) &temp, mem.dataSize, mem.count, location, mem.distance, mem.distance_level, mem.allocType);
+	geckoMemoryDeclare((void**) &temp, mem.dataSize, mem.count, location, mem.distance, mem.distance_level,
+			mem.allocType, (char*)mem.filename_permanent.c_str());
 	geckoMemCpy(temp, 0, mem.count, *addr, 0, mem.count);
 	bool is_dummy = mem.is_dummy;
 	geckoFree(*addr);

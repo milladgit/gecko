@@ -2,6 +2,7 @@
 import os,sys,re,glob,atexit
 import geckoREUtilities as gREU
 import geckoFileUtils as gFU
+import copy
 
 
 pragma_keyword 				= "gecko"
@@ -73,13 +74,13 @@ class SourceFile(object):
 					micro_arch = kind[1].upper()
 					# micro_arch = micro_arch[1:-1]
 
-				if family not in ("X64", "X32", "NVIDIA", "UNIFIED_MEMORY"):
+				if family not in ("X64", "X32", "NVIDIA", "UNIFIED_MEMORY", "PERMANENT_STORAGE"):
 					print "Line %d - Error in kind of locationtype - Unknown family (%s)" % (lineNumber, family)
 					exit(1)
 
 			elif k[0] == "num_cores":
 				num_cores = k[1][:-1]
-			elif k[0] == "mem":
+			elif k[0] == "mem" or k[0] == "size":
 				mem_text = k[1][:-1]
 				mem = mem_text.split(',')
 				mem_len = len(mem)
@@ -243,6 +244,7 @@ class SourceFile(object):
 		to_var = ""
 		is_auto = False 
 		is_realloc = False
+		filename_permanent = None
 		i = 3
 		while i < len(keywords):
 			k = keywords[i].split("(")
@@ -276,6 +278,8 @@ class SourceFile(object):
 				is_auto = True
 			elif k[0] == "realloc":
 				is_realloc = True
+			elif k[0] == "file":
+				filename_permanent = k[1][:-1]
 
 			i += 1
 
@@ -370,33 +374,22 @@ class SourceFile(object):
 
 
 
-		# name_list = name.strip().split("[")
-		# if len(name_list) == 1:
-		# 	name = name_list[0]
-		# 	count = "1"
-		# elif len(name_list) != 2:
-		# 	print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
-		# 	exit(1)	
-		# else:	
-		# 	name = name_list[0]
-		# 	prop = name_list[1][:-1]
-		# 	prop = prop.split(":")
-		# 	if len(prop) != 2:
-		# 		print "Line: %d - Cannot extract length of variable %s as in (%s)" % (lineNumber, name, ' '.join(prop))
-		# 		exit(1)
-		# 	count = prop[1]
 		name_list = gREU.parseVariableString(name)
 		if name is None:
 			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
 			exit(1)
 		name = name_list[0]
+		# name_list[1] should always be 0!
 		count = name_list[2]
+
+		if filename_permanent is None:
+			filename_permanent = 'NULL'
 
 
 		if "gecko_" in _type:
 			line = '%sMemoryInternalTypeDeclare(%s, sizeof(%s), %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type[6:], count, loc, distance, distance_level, distance_alloc_type)
 		else:
-			line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance, distance_level, distance_alloc_type)
+			line = '%sMemoryDeclare((void**)&%s, sizeof(%s), %s, %s, %s, %s, %s, %s);\n' % (pragma_prefix_funcname, name, _type, count, loc, distance, distance_level, distance_alloc_type, filename_permanent)
 
 		return line
 
@@ -416,6 +409,8 @@ class SourceFile(object):
 		kernels = False
 		reduction_list = list()
 		intensity = ""
+		collapse = ""
+		independent_loop = ""
 
 		i = 3
 		while i < len(keywords):
@@ -448,6 +443,10 @@ class SourceFile(object):
 				reduction_list.append(k[1][:-1])
 			elif k[0] == "intensity":
 				intensity = k[1][:-1]
+			elif k[0] == "collapse":
+				collapse = "collapse(%s)" % (k[1][:-1])
+			elif k[0] == "independent":
+				independent_loop = "independent"
 
 			i += 1
 
@@ -617,6 +616,7 @@ class SourceFile(object):
 		return var_line_before, var_line_after, var_line_end
 
 
+
 	def generateVarListInternalClause(self):
 		varList = self.variable_list_internal.split(",")
 		varList2 = []
@@ -728,6 +728,8 @@ class SourceFile(object):
 			if "=" in cond:
 				has_equal_sign = 1
 
+			if datatype is None:
+				datatype = ""
 
 
 			range_line_begin = ""
@@ -773,14 +775,18 @@ class SourceFile(object):
 			#line += "%sBindLocationToThread(devIndex, dev[devIndex]);\n"  % (pragma_prefix_funcname)
 			line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
 			line += "int asyncID = dev[devIndex]->getAsyncID();\n"
+			line += "int locType = (int) dev[devIndex]->getLocationType().type;\n"
+
+
+			# generating OpenMP
+			# line += "if(locType == GECKO_X32 || locType == GECKO_X64) {\n"
+
 			line += "%s deviceptr(%s) async(asyncID) " % (self.pragmaForRegion, self.var_list)
 			if var_list_internal_clause == "":
 				line += "\n"
 			else:
 				line += " copyin(%s)\n" % (var_list_internal_clause)
 
-			if datatype is None:
-				datatype = ""
 
 			line += "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLI", varcond, cond, "endLI", inc)
 
@@ -794,6 +800,345 @@ class SourceFile(object):
 			return line
 
 		return None
+
+
+
+
+
+
+
+	def extractVarList(self):
+		temp_varList = self.var_list.split(",")
+		varList2 = []
+		for v in temp_varList:
+			v = v.strip()
+			if v == "":
+				continue
+			varList2.append(v)
+
+		return varList2
+
+
+
+	def generatePragmaAccOmpClauseNewApproach(self, presentClause, collapse, independent_loop):
+
+		reduction_stmt = ""
+		for reduc in self.reduction_list:
+			reduction_stmt += " reduction(%s) " % (reduc)
+
+
+		privateVars = self.extractVarList()
+		privateVarsString = ""
+		if len(privateVars) != 0:
+			for pv in privateVars:
+				privateVarsString += "%s," % (pv)
+
+		if len(privateVarsString) > 0:
+			privateVarsString = " firstprivate(%s) " % (privateVarsString[:-1])
+
+
+		pragmaACC = ""
+
+		if self.kernels:
+			pragmaACC = "#pragma acc kernels"
+		else:
+			pragmaACC = "#pragma acc parallel loop "
+			if self.gang:
+				pragmaACC += "gang "
+				if self.gang_count > 0:
+					pragmaACC += "num_gangs(%d) " % (self.gang_count)
+
+			if self.vector:
+				pragmaACC += "vector "
+				if self.vector_count > 0:
+					pragmaACC += "vector_length(%d) " % (self.vector_count)
+
+
+		pragmaACC += reduction_stmt + " " + presentClause + " async(asyncID) "
+		pragmaACC += "%s %s async(asyncID) %s %s" % (reduction_stmt, presentClause, collapse, independent_loop)
+
+		pragmaOMP = "#pragma omp parallel for " + reduction_stmt
+
+		
+		return pragmaACC, pragmaOMP, reduction_stmt, privateVarsString
+
+
+
+	def generateDevicePtrClause(self):
+		temp_varList = self.extractVarList()
+		if len(temp_varList) == 0:
+			return ""
+
+		presentStr = ""
+		for p in temp_varList:
+			presentStr += "%s," % p
+		presentStr = presentStr[:-1]
+		return "deviceptr(%s)" % (presentStr)
+
+
+
+	def processRegionNewApproach(self, keywords, lineNumber, lines_list):
+		at = ""
+		exec_pol = ""
+		exec_pol_int = ""
+		var_list = ""
+		variable_list_internal = ""
+		end = False
+		wait = False
+		gang = False
+		gang_count = -1
+		vector = False
+		vector_count = -1
+		kernels = False
+		reduction_list = list()
+		intensity = ""
+		collapse = ""
+		independent_loop = ""
+
+		# parsing the region line:
+		i = 3
+		while i < len(keywords):
+			k = keywords[i].split("(")
+			if k[0] == "at":
+				at = k[1][:-1]
+			elif k[0] == "exec_pol":
+				exec_pol = k[1][:-1]
+			elif k[0] == "exec_pol_int":
+				exec_pol_int = k[1][:-1]
+			elif k[0] == "variable_list":
+				var_list = k[1][:-1]
+			elif k[0] == "variable_list_internal":
+				variable_list_internal = k[1][:-1]
+			elif k[0] == "end":
+				end = True
+			elif k[0] == "pause":
+				wait = True
+			elif k[0] == "gang":
+				gang = True
+				if len(k) > 1:
+					gang_count = int(k[1][:-1])
+			elif k[0] == "vector":
+				vector = True
+				if len(k) > 1:
+					vector_count = int(k[1][:-1])
+			elif k[0] == "kernels":
+				kernels = True
+			elif k[0] == "reduction":
+				reduction_list.append(k[1][:-1])
+			elif k[0] == "intensity":
+				intensity = k[1][:-1]
+			elif k[0] == "collapse":
+				collapse = "collapse(%s)" % (k[1][:-1])
+			elif k[0] == "independent":
+				independent_loop = "independent"
+
+			i += 1
+
+
+		if wait:
+			if at == "":
+				at = '""'
+			line = "%sWaitOnLocation(%s);\n" % (pragma_prefix_funcname, at)
+			return line, lineNumber
+
+
+		if len(exec_pol) > 0 and len(exec_pol_int) > 0:
+			print "Line: %d - Cannot have 'exec_pol' and 'exec_pol_int' at the same time." % (lineNumber)
+			exit(1)
+
+
+		if (gang or vector) and kernels:
+			print "Line: %d - the 'kernels' contruct in OpenACC could not be utilized while 'gang' and 'vector' are chosen." % (lineNumber)
+			exit(1)
+
+
+
+		self.gang = gang
+		self.gang_count = gang_count
+		self.vector = vector
+		self.vector_count = vector_count
+		self.kernels = kernels
+		self.reduction_list = reduction_list
+
+
+		self.var_list = var_list
+		self.variable_list_internal = variable_list_internal
+
+		intensity_is_float, intensity_val_float = isFloat(intensity)
+		if intensity_is_float:
+			intensity = intensity_val_float
+		else:
+			if intensity == '':
+				intensity = -1
+		self.intensity = intensity
+
+
+		self.exec_pol = exec_pol
+		if at == '':
+			at = '""'
+		self.at = at
+
+
+		if "range" in exec_pol:
+			pol = gREU.parseRangePolicy("range", exec_pol)
+			if pol is None:
+				pol = exec_pol.split(":")[1][:-1]
+				if "," not in pol:
+					print "Line: %d - 'Range' execution policy should include the ranges." % (lineNumber)
+					exit(1)
+				self.exec_pol_type = "runtime"
+			else:
+				self.exec_pol_type = "array"
+
+			self.exec_pol = '"range"'
+			self.exec_pol_option = pol
+
+		elif "percentage" in exec_pol:
+			pol = gREU.parseRangePolicy("percentage", exec_pol)
+			if pol is None:
+				pol = exec_pol.split(":")[1][:-1]
+				print pol
+				if "," not in pol:
+					print "Line: %d - 'Percentage' execution policy should include the percentages." % (lineNumber)
+					exit(1)
+				self.exec_pol_type = "runtime"
+			else:
+				self.exec_pol_type = "array"
+
+			self.exec_pol = '"percentage"'
+			self.exec_pol_option = pol
+
+
+
+		all_lines_in_kernel = list()
+		i = lineNumber
+		while i < len(lines_list):
+			line = lines_list[i]
+			line = line.strip()
+			__keywords = line.split()
+			if len(__keywords) >= 4 and __keywords[0] == "#pragma" and __keywords[1] == "gecko" and __keywords[2] == "region" and __keywords[3] == "end":
+				break
+			all_lines_in_kernel.append(line + "\n")
+			i += 1
+
+
+		for_loop = None
+		for line_index, line in enumerate(all_lines_in_kernel):
+			for_loop = gREU.parseForLoop(line)
+			if for_loop is not None:
+				break
+
+		if for_loop is None:
+			print "Line: %d - Unrecognizable for-loop format." % (lineNumber)
+			exit(1)
+		(datatype, varname, initval, varcond, cond, boundary, inc, paranthesis) = for_loop
+
+		incremental_direction = None
+		for c in ["++", "+=", "*="]:
+			if c in inc:
+				incremental_direction = 1
+		for c in ["--", "-=", "/="]:
+			if c in inc:
+				incremental_direction = 0
+
+
+		if incremental_direction is None:
+			print "Line: %d - Unknown iteration statment. Unrecognizable for-loop format." % (lineNumber)
+			exit(1)
+
+
+		lineNumber = i+1
+
+
+		has_equal_sign = 0
+		if "=" in cond:
+			has_equal_sign = 1
+
+		if datatype is None:
+			datatype = ""
+
+
+
+		range_line_begin, range_line_end = self.generateRangeLine()
+
+		var_list_line_before, var_list_line_after, var_list_line_end = self.generateVarLine()
+		# var_list_internal_clause = self.generateVarListInternalClause()
+
+		devicePtrClause = self.generateDevicePtrClause()
+
+		pragmaACCRegion, pragmaOMPRegion, reduction_stmt_omp, privateVarsString = self.generatePragmaAccOmpClauseNewApproach(devicePtrClause, collapse, independent_loop)
+
+
+
+		all_lines_in_kernel_acc = copy.deepcopy(all_lines_in_kernel)
+		all_lines_in_kernel_omp = copy.deepcopy(all_lines_in_kernel)
+
+		all_lines_in_kernel_acc.insert(line_index, pragmaACCRegion+"\n")
+		all_lines_in_kernel_omp.insert(line_index, pragmaOMPRegion+"\n")
+
+
+		for_line = "for(%s %s = %s;%s %s %s;%s)" % (datatype, varname, "beginLI", varcond, cond, "endLI", inc)
+		if paranthesis is None:
+			for_line += "\n"
+		else:
+			for_line += " {\n"
+
+		del all_lines_in_kernel_acc[line_index+1]
+		del all_lines_in_kernel_omp[line_index+1]
+		all_lines_in_kernel_acc.insert(line_index+1, for_line)
+		all_lines_in_kernel_omp.insert(line_index+1, for_line)
+
+		line = '{\n'
+		line += "int *beginLoopIndex=NULL, *endLoopIndex=NULL, jobCount, devCount, devIndex;\n"
+		line += "GeckoLocation **dev = NULL;\n"
+		line += range_line_begin		# this line contains 'ranges_count' and 'ranges'
+		line += var_list_line_before
+		line += 'GeckoError err = %sRegion(%s, %s, %s, %s, %d, %d, &devCount, &beginLoopIndex, &endLoopIndex, &dev, ranges_count, ranges, var_count, var_list, %s);\n' \
+				 % (pragma_prefix_funcname, self.exec_pol, self.at, initval, boundary, incremental_direction, has_equal_sign, self.intensity)
+
+		line += "if(err != GECKO_ERR_TOTAL_ITERATIONS_ZERO) {\n"
+		line += var_list_line_after
+		line += range_line_end
+		line += "#pragma omp parallel num_threads(devCount) %s %s\n" % (reduction_stmt_omp, privateVarsString)
+		line += "{\n"
+		line += "int devIndex = omp_get_thread_num();\n"
+		line += "if(dev[devIndex] != NULL) {\n"
+		line += "int beginLI = beginLoopIndex[devIndex], endLI = endLoopIndex[devIndex];\n"
+		line += "int asyncID = dev[devIndex]->getAsyncID();\n"
+		line += "int locType = (int) dev[devIndex]->getLocationType().type;\n"
+
+
+		# generating OpenMP
+		line += "if(locType == GECKO_X32 || locType == GECKO_X64) {\n"
+		line += ' '.join(all_lines_in_kernel_omp)
+		line += "} else if(locType == GECKO_NVIDIA) {\n"
+		# generating OpenACC
+		line += ' '.join(all_lines_in_kernel_acc)
+		line += "}\n"
+
+		var_list_line_before, var_list_line_after, var_list_line_end = self.generateVarLine()
+
+		# line += "#pragma acc wait(asyncID)\n"
+		line += "} // end of if(dev[devIndex]!=NULL)\n"
+		line += "#pragma acc wait\n"
+		line += "} // end of OpenMP pragma \n"
+		# line += "#pragma acc wait\n"
+		line += var_list_line_end
+		line += "} // end of checking: err != GECKO_ERR_TOTAL_ITERATIONS_ZERO \n"
+		line += "geckoFreeRegionTemp(beginLoopIndex, endLoopIndex, devCount, dev, var_count, var_list, old_var_list);\n"
+		line += "}\n"
+
+
+		return line, lineNumber
+
+
+
+
+
+
+
+
+
 
 
 
@@ -889,33 +1234,34 @@ class SourceFile(object):
 		return line
 
 
-	def processLine(self, line, lineNumber, real_line):
+	def processLine(self, line, lineNumber, real_line, lines_list):
 		# keywords = line.split()
 		keywords = line
 
 		if self.parsing_region_state in [1, 2]:
-			return self.parseRegionKernel(keywords, lineNumber)
+			return self.parseRegionKernel(keywords, lineNumber), lineNumber
 
 		if keywords[2] == "loctype":
-			return self.processLocationType(keywords, lineNumber)
+			return self.processLocationType(keywords, lineNumber), lineNumber
 		elif keywords[2] == "location":
-			return self.processLocation(keywords, lineNumber)
+			return self.processLocation(keywords, lineNumber), lineNumber
 		elif keywords[2] == "hierarchy":
-			return self.processHierarchy(keywords, lineNumber)
+			return self.processHierarchy(keywords, lineNumber), lineNumber
 		elif keywords[2] == "memory":
-			return self.processMemory(keywords, lineNumber)
+			return self.processMemory(keywords, lineNumber), lineNumber
 		elif keywords[2] == "region":
-			return self.processRegion(keywords, lineNumber)
+			# return self.processRegion(keywords, lineNumber), lineNumber
+			return self.processRegionNewApproach(keywords, lineNumber, lines_list)
 		elif keywords[2] == "draw":
-			return self.processDraw(keywords, lineNumber)
+			return self.processDraw(keywords, lineNumber), lineNumber
 		elif keywords[2] == "config":
-			return self.processConfig(keywords, lineNumber)
+			return self.processConfig(keywords, lineNumber), lineNumber
 		elif keywords[2][0:3] == "put":
-			return self.processPut(keywords, lineNumber)
+			return self.processPut(keywords, lineNumber), lineNumber
 		else:
 			print "Unrecognized %s clause - Line (%d): %s" % (pragma_keyword, lineNumber, real_line.strip())
 			exit(1)
-		return "\n"
+		return "\n", lineNumber
 
 	def omitProblematicSpaces(self, line_to_process, lineNumber):
 		keywords = line_to_process.split()
@@ -999,14 +1345,16 @@ class SourceFile(object):
 				if preserveOriginalCodeAsComment:
 					outputLines.append("//%s\n" % (line_to_process))
 				# line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
-				## outputLines.append(self.processLine(' '.join(line_to_process), i+1))
-				outputLines.append(self.processLine(line_to_process_list, i+1, real_line))
+				line_to_append, i = self.processLine(line_to_process_list, i+1, real_line, lines)
+				i += -1
+				outputLines.append(line_to_append)
 			elif self.parsing_region_state in [1, 2]:
 				if preserveOriginalCodeAsComment:
 					outputLines.append("//%s\n" % (line_to_process))
 				# line_to_process_list = self.omitProblematicSpaces(line_to_process, i+1)
-				## outputLines.append(self.processLine(' '.join(line_to_process), i+1))
-				outputLines.append(self.processLine(line_to_process_list, i+1, real_line))
+				line_to_append, i = self.processLine(line_to_process_list, i+1, real_line, lines)
+				i += -1
+				outputLines.append(line_to_append)
 			else:
 				outputLines.append(real_line)
 			i += 1

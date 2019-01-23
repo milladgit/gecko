@@ -462,7 +462,7 @@ GeckoLocation* __geckoRegionFindByVarList(int var_list_count, void **var_list) {
 
 	/*
 	 *
-	 * Avoid those variables that their distance trait is set to "near" or "far".
+	 * Avoiding those variables that their "distance" trait is set to "near" or "far".
 	 * Such variables should not be taken into consideration in the location selection
 	 * process since they are waiting for the process to be finalized!
 	 *
@@ -569,6 +569,10 @@ void __geckoUpdateVarListWithRealAddr(int var_count, void **var_list, GeckoLocat
 
 		if(distance == GECKO_DISTANCE_NEAR || distance == GECKO_DISTANCE_FAR) {
 
+#ifdef INFO
+			fprintf(stderr, "===GECKO: Checking variable at index %d as a '%s' variable\n", i, (distance == GECKO_DISTANCE_NEAR ? "Near" : "Far"));
+#endif
+
 			if(variable.real_address != NULL)
 				continue;
 
@@ -595,6 +599,10 @@ void __geckoUpdateVarListWithRealAddr(int var_count, void **var_list, GeckoLocat
 
 				var_list[i] = variable.real_address;    // updating the array with real addresses
 
+#ifdef INFO
+				fprintf(stderr, "===GECKO: Assigning variable at index %d to location: %s\n", i, location->getLocationName().c_str());
+#endif
+
 			} else if(variable.allocType == GECKO_DISTANCE_ALLOC_TYPE_AUTO) {
 				if(variable.loc == location->getLocationName())
 					continue;
@@ -608,7 +616,7 @@ void __geckoUpdateVarListWithRealAddr(int var_count, void **var_list, GeckoLocat
 				void *temp;
 				// this line does not work because of the alloc type
 				geckoMemoryDeclare(&temp, variable.dataSize, variable.count, (char*) location->getLocationName().c_str(),
-						variable.distance, variable.distance_level, variable.allocType);
+						variable.distance, variable.distance_level, variable.allocType, (char*)variable.filename_permanent.c_str());
 				geckoMemCpy(temp, 0, variable.count, var_list[i], 0, variable.count);
 				bool is_dummy = variable.is_dummy;
 				geckoFree(var_list[i]);
@@ -664,7 +672,13 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 		exit(1);
 	}
 
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Extract real addresses - Start\n");
+#endif
 	__geckoUpdateVarListWithRealAddr(var_count, var_list, location);
+#ifdef INFO
+	fprintf(stderr, "===GECKO: Extract real addresses - End\n");
+#endif
 
 
 	// finding total iteration of the loop
