@@ -19,6 +19,7 @@ using namespace std;
 
 #include "geckoUtils.h"
 #include "geckoDataTypeGenerator.h"
+#include "geckoMemory.h"
 
 
 #define GECKO_ACQUIRE_SLEEP_DURATION_NS 100      // in nanoseconds
