@@ -171,6 +171,9 @@ GeckoError geckoLoadConfigWithFile(char *filename) {
 	for(int i=0;i<lines.size();i++) {
 		vector<string> &fields = lines[i];
 
+		if(fields[0][0] == '#')
+			continue;
+
 		if(fields[0].compare("loctype") == 0) {
 			__geckoLoadConfFileDeclLocType(fields);
 		} else if(fields[0].compare("location") == 0) {

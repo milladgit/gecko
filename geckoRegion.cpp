@@ -643,7 +643,7 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	string exec_pol;
 
 	bool shouldRangesBeFreed;
-	if(geckoPolicyRunTimeExists) {
+	if(geckoPolicyRunTimeExists || strcmp(exec_pol_chosen, "runtime") == 0) {
 		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(geckoChosenPolicyRunTime, exec_pol, ranges_count, &ranges);
 	} else {
 		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(exec_pol_chosen, exec_pol, ranges_count, &ranges);
@@ -821,7 +821,7 @@ GeckoError geckoWaitOnLocation(char *loc_at) {
 #pragma omp parallel num_threads(devCount)
 //	for(int devIndex=0;devIndex<devCount;devIndex++)
 	{
-		int tid = omp_get_thread_num();
+		const int tid = omp_get_thread_num();
 		//GeckoLocation *loc = GeckoLocation::find(geckoThreadDeviceMap[tid]);
 		GeckoLocation *loc = locs[tid];
 #ifdef INFO
