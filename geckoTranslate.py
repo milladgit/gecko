@@ -1193,6 +1193,9 @@ class SourceFile(object):
 			line = "%sLoadConfigWithFile(%s);" % (pragma_prefix_funcname, filename)
 		elif is_env_method_chosen:
 			line = "%sLoadConfigWithEnv();" % (pragma_prefix_funcname)
+		else:
+			print "Error in 'config' clause. Available options are: 'env' and 'file'."
+			exit(1)
 
 		return line
 

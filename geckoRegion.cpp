@@ -131,7 +131,8 @@ void geckoBindThreadsToAccDevices(int *devCount) {
 		vector<GeckoLocation *> &locList = GeckoLocation::getChildListForThreads();
 		// If hierarchy has changed since the last call to above function,
 		// reassign OpenACC devices to OpenMP threads.
-#pragma omp parallel num_threads(*devCount)
+
+		#pragma omp parallel num_threads(*devCount)
 		{
 			int id = omp_get_thread_num();
 			GeckoLocation *loc = locList[id];
@@ -139,16 +140,18 @@ void geckoBindThreadsToAccDevices(int *devCount) {
 			if(loc->getLocationType().type == GECKO_X32 || loc->getLocationType().type == GECKO_X64) {
 				acc_set_device_num(loc->getLocationIndex(), acc_device_host);
 				loc->setThreadID(id);
-#ifdef INFO
+
+				#ifdef INFO
 				fprintf(stderr, "===GECKO: Assigning location %s to thread id %d\n", loc->getLocationName().c_str(), id);
-#endif
+				#endif
 
 			} else if(loc->getLocationType().type == GECKO_NVIDIA) {
 				acc_set_device_num(loc->getLocationIndex(), acc_device_nvidia);
 				loc->setThreadID(id);
-#ifdef INFO
+
+				#ifdef INFO
 				fprintf(stderr, "===GECKO: Assigning location %s to thread id %d\n", loc->getLocationName().c_str(), id);
-#endif
+				#endif
 
 			}
 
@@ -214,11 +217,11 @@ void __geckoExecPolStatic(const size_t initval, const size_t boundary, const int
 			end = (incremental_direction ? start + children_names[i].iterationCount : start -
 					children_names[i].iterationCount);
 
-	#ifdef INFO
+		#ifdef INFO
 		fprintf(stderr, "===GECKO:\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 			   children_names[i].iterationCount);
 		fprintf(stderr, "[%d, %d]\n", start, end);
-	#endif
+		#endif
 
 		GeckoLocation *loc = children_names[i].loc;
 		int loc_thread_id = loc->getThreadID();
@@ -247,11 +250,12 @@ __geckoExecPolFlatten(const size_t initval, const size_t boundary, const int inc
 			end = boundary;
 		else
 			end = (incremental_direction ? start + delta : start - delta);
-	#ifdef INFO
+
+		#ifdef INFO
 		fprintf(stderr, "\t\tChild %d: %s - share: %d - ", i, children_names[i].loc->getLocationName().c_str(),
 			   (end - start) * (incremental_direction ? 1 : -1)  );
 		fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[i].loc);
-	#endif
+		#endif
 
 		GeckoLocation *loc = children_names[i].loc;
 		int loc_thread_id = loc->getThreadID();
@@ -274,9 +278,9 @@ __geckoExecPolAny(const size_t initval, const size_t boundary, vector<__geckoLoc
 	beginLoopIndex[loc_thread_id] = initval;
 	endLoopIndex[loc_thread_id] = boundary;
 
-#ifdef INFO
+	#ifdef INFO
 	fprintf(stderr, "===GECKO: Choosing location %s for 'any' execution policy.\n", dev[loc_thread_id]->getLocationName().c_str());
-#endif
+	#endif
 
 }
 
@@ -643,7 +647,12 @@ GeckoError geckoRegion(char *exec_pol_chosen, char *loc_at, size_t initval, size
 	string exec_pol;
 
 	bool shouldRangesBeFreed;
-	if(geckoPolicyRunTimeExists || strcmp(exec_pol_chosen, "runtime") == 0) {
+	bool runtime_policy_is_set = (strcmp(exec_pol_chosen, "runtime") == 0);
+	if(runtime_policy_is_set) {
+		if(!geckoPolicyRunTimeExists) {
+			fprintf(stderr, "===GECKO: Execution policy 'runtime' requires the GECKO_POLICY environmental variable to be set.\n");
+			exit(1);
+		}
 		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(geckoChosenPolicyRunTime, exec_pol, ranges_count, &ranges);
 	} else {
 		shouldRangesBeFreed = __geckoParseRangePercentagePolicy(exec_pol_chosen, exec_pol, ranges_count, &ranges);
