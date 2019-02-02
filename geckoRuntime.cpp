@@ -102,6 +102,7 @@ GeckoError geckoInit() {
 
 	// for nested OpenMP regions in case we target Multicore architectures
 	omp_set_nested(1);
+	omp_set_num_threads(omp_get_num_procs());
 
 	geckoTreeHead = NULL;
 
