@@ -1,4 +1,5 @@
 
+
 # Gecko
 
 This repo contains Gecko Runtime Library. With help of a set of directives, Gecko addresses multi-level memory hierarchy in current and future modern architectures and platforms.
@@ -47,13 +48,16 @@ The first step in utilizing Gecko is to declare all location types. This is achi
 
 **Note 2:** This construct is a Work-In-Progress (WIP) and experimental. At this stage, we support extra keywords that are shown in the example below.
 
-**Example:** The first line in the following code snippet declares that our application will require a host CPU with 4 cores and of Intel's Skylake type. The second line declares a minimum NVidia GPU with Compute Capability of 5.0 (`cc50`) and names it `tesla` for future references in defining locations. The third line specifies the main memory module in our system with 16 GB in size.
+**Note 3:** For a list of supported memory `kind`s, please visit *the following example*.
+
+**Example:** The first line in the following code snippet declares that our application will require a host CPU with 4 cores and of Intel's Skylake type. The second line declares a minimum NVidia GPU with Compute Capability of 5.0 (`cc50`) and names it `tesla` for future references in defining locations. The third line specifies the main memory module in our system with 16 GB in size. 
 
 
 ```C++
 #pragma gecko loctype name("host") kind("x64", "Skylake") num_cores(4) mem("4MB")
 #pragma gecko loctype name("tesla") kind("NVIDIA", "cc50") mem("4GB")
 #pragma gecko loctype name("NODE_MEMORY") kind("Unified_Memory") size("16GB")
+#pragma gecko loctype name("HDD") kind("Permanent_Storage") 
 ```
 
 
@@ -168,16 +172,25 @@ The syntax to use `draw` is as following. It accepts a `root` keyword, which use
 
 ## Memory Operations
 
-Memory operations in Gecko are supported by the `memory` construct. To allocate memory, use `allocate` keyword and to free the object, use `free`.
+### Allocating/Freeing memory
+
+Memory operations in Gecko are supported by the `memory` construct. To allocate memory, use `allocate` keyword and to free the object, use `free`. Optional features are specified inside brackets (`[]`).
 
 ```C++
-#pragma gecko memory allocate(<ptr>[0:<count>]) type(<datatype>) location(char*)
+#pragma gecko memory allocate(<ptr>[0:<count>]) type(<datatype>) location(char*) [distance(<dist>) [realloc/auto]] [file(char*)] 
 #pragma gecko free(<ptr_list>)
 ```
 
  - `allocate(<ptr>[0:<count>])`: the input to the `allocate` keyword accepts a pointer (`<ptr>`) and its number of elements (`<count>`). `<count>` can be a constant or a variable. *Please see the example below.*
  - `datatype`: the data type of the `ptr` variable.
  - `<ptr_list>`: list of allocated variables by `allocate`. It can have one or more than one variable.
+ - `<dist>`: specifies the distance of the allocation in distance-based allocations. For these types of allocations, the allocation is performed when the destination location to execute the region is chosen. As a result, the allocation is postponed until the region is ready to be executed. It accepts following values:
+	 - `near`: the allocation is performed in the chosen execution location.
+	 - `far[:<n>]`: the allocation is performed in the `n`-th grandparent with respect to the chosen execution location. For `n==0` and `n==1`, the immediate grandparent is chosen. In cases that `n` causes the location to be chosen to go further than the root location, the root location is chosen.
+ - `<realloc/auto>`: the policy to perform the allocation. 
+	 - `realloc`: the allocated memory is freed after the associated region is finished.
+	 - `auto`: the allocated memory is not freed after the region is finished and it is moved around the hierarchy as needed. The allocated memory is able to be generalized (goes up in the hierarchy) and not privatized (going down the hierarchy). This feature is a **Working-In-Progress**.
+ - `file`: the file name in case the location type is `Permanent_Storage` .
 
 
 **Example**:
@@ -194,20 +207,90 @@ double *X, *Y, *Z, *W;
 #pragma gecko memory free(X, Y, Z, W)
 ```
 
+**Note:** Please refer to the `region` section to see an example of distance-based allocations.
+
+
+
+### Copy and Move
+
+One can copy memory between two different memory locations. It is similar to `memcpy` operations, however, it is performed between different platforms and architectures. 
+
+```C++
+// Copying elements from FVar[s1, e1] to TVar[s2, e2]
+#pragma gecko memory copy from(FVar[s1:e1]) to(TVar[s2:e2])
+```
+
+
+**Example**:
+
+```C++
+#pragma gecko memory copy from(X[0:N]) to(Y[0:N])
+```
+
+In some cases, we have to move a set of data elements from Location P to Location Q. In such cases, the source location no longer possesses the variable and the destination locations has to own the variable.  It is like the variable was originally allocated in the destination location.
+
+```C++
+// Copying elements from FVar[s1, e1] to TVar[s2, e2]
+#pragma gecko memory move(<var>) to(char*)
+```
+
+
+**Example**:
+
+```C++
+#pragma gecko memory move(Q) to("LocA")
+```
+
+
+### Register/Unregister
+
+There are many cases where we are dealing with variables that are already allocated with a well-known allocation API and we want to use such variables in our location. However, they are unknown to Gecko. With `register/unregister` clauses one can introduce them properly to Gecko.
+
+
+```C++
+#pragma gecko memory register(<var>[<start>:<end>]) type(<type>) loc(char*)
+#pragma gecko memory unregister(<var>) 
+```
+
+ - `<var>`: the already allocated memory.
+ - `<start>` and `<end>`: start and end indices of the `var`.
+ - `<type>`: type of the memory.
+ - `loc`: the name of the proper location that this variable was originated from.
+
+
+**Example**:
+
+```C++
+vector<double> v(100);
+double *v_addr = (double*) v.data();
+#pragma gecko memory register(v_addr[0:100]) type(double) loc("LocN")
+double *d_addr;
+cudaMalloc((void**) &d_addr, sizeof(double) * 100);
+#pragma gecko memory register(d_addr[0:100]) type(double) loc("LocG1")
+// ...
+#pragma gecko memory unregister(d_addr) 
+#pragma gecko memory unregister(v_addr) 
+```
+
+
+
 
 ## Region
 
 Gecko recognizes the computational kernels with the `region` construct. The end of the region is recognized with the `end` keyword.
 
 ```C++
-#pragma gecko region at(char*) exec_pol(char*) variable_list(<ptr_list>)
-// the OpenACC kernel
+#pragma gecko region exec_pol(char*) variable_list(<ptr_list>) [gang[(<gang_count>)]] [vector[(<vector_count>)]] [independent] [reduction(<op>:<var>)] [at(char*)] 
+// the for loop
 #pragma gecko region end
 ```
 
- - `at`: the destination location to execute the code.
  - `datatype`: the execution policy to execute the kernel. *Please refer to execution policy section for more details.*
  - `<ptr_list>`: list of utilized variables within the region.
+ - `gang`, `vector`, `independent`, and `reduction`: please refer to the OpenACC specification to learn more about these keywords.
+	 - **Note:** Gecko relies on OpenACC to generate code for different architecture.
+ - `at`: *[optional]* the destination location to execute the code. 
+	 - **Note:** In the new version of Gecko, the destination location is chosen based on the variables used in the region (`<ptr_list>`). However, the developer can override Gecko and specify where to execute the code.
 
 
 **Example:**
@@ -215,13 +298,44 @@ Gecko recognizes the computational kernels with the `region` construct. The end 
 double coeff = 3.4;
 int a = 0;
 int b = N;
-#pragma gecko region at("LocA") exec_pol("static") variable_list(Z,Q)
-#pragma acc parallel loop
+#pragma gecko region exec_pol("static") variable_list(Z,X)
 for (int i = a; i<b; i++) {
-	Z[i] = Q[i] * coeff;
+	Z[i] = X[i] * coeff;
 }
 #pragma gecko region end
 ```
+
+
+**Example of distance-based allocations:**
+
+Following is an example of distance-based allocations.
+
+```C++
+double *T1, *T1_realloc, *T1_auto, *T2, *T2_far2, *T2_far_variable;
+#pragma gecko memory allocate(T1[0:N]) type(double) distance(near)
+#pragma gecko memory allocate(T1_realloc[0:N]) type(double) distance(near) realloc
+#pragma gecko memory allocate(T2[0:N]) type(double) distance(far) file("T2.obj")
+#pragma gecko memory allocate(T2_far2[0:N]) type(double) distance(far:2) file("T2_far.obj")
+int far_distance = 10;
+#pragma gecko memory allocate(T2_far_variable[0:N]) type(double) distance(far:far_distance) file("T2_far_variable.obj")
+
+double *Perm;
+#pragma gecko memory allocate(Perm[0:N]) type(double) location("LocHDD") file("perm.obj")
+
+a = 0;
+b = N;
+long total = 0;
+#pragma gecko region exec_pol("static") variable_list(Perm,Z,X,T1,T2_far_variable) reduction(+:total)
+for (int i = a; i<b; i++) {
+	Z[i] = X[i] * coeff;
+	T1[i] *= 2;
+	T2_far_variable[i] *= 2;
+	total += (i+1);
+	Perm[i] = i;
+}
+#pragma gecko region end
+```
+
 
 
 ## Synchronization point (wait)
@@ -274,8 +388,41 @@ In some cases, we are only interested in engaging only one of the locations of t
  - Run-time variable.
  - Specifies the execution policy for all the regions in the code. If it is set, all the regions in the code will be executed with a policy among the described one above.
 
+
+------------------
+
+## How to use Gecko?
+
+Defining following aliases will help the development.
+
+```bash
+alias gf="python /path/to/gecko/geckoTranslate.py forward ./"
+alias gb="python /path/to/gecko/geckoTranslate.py backward ./"
+```
+
+The first alias, `gf`, if called within any folder, converts all the files annoted with the Gecko directives. It will replace the file with translated content. The translated file is ready to be compiled.
+
+The second alias, `gb`, will revert back the Gecko-annotated files to their original version.
+
+By calling `make` in the Gecko folder, the Gecko runtime library will be created in the `./lib` folder.
+
+**How to compile the generated code?**
+```bash
+pgc++ -m64 -std=c++11 -w -Mllvm  -mp -acc -ta=tesla -Minfo=accel -DCUDA_ENABLED -I/usr/local/cuda/include/ -O3  -o <output_exe_file>  <source_file> -lm -L/usr/local/cuda/lib64 -lcudart  ./lib/libgecko.a
+```
+
+**Note:** Please refer to the Makefile and `test.cpp` files for examples of how to use Gecko.
+
+------------------
+
+## Important Disclaimer
+
+ - The `geckoTranslate.py` script is not a sophisticated compiler by any means. We tried our best to translate the directives of Gecko and generate a correct C++ code. There might be some cases that is not covered in our translation process.
+ - The memory allocations are relying on the CUDA runtime library and `malloc`. 
+ - The final code generated by `geckoTranslate.py` script contains OpenMP and OpenACC directives to target CPU (host) and GPU devices. The computational regions of the code rely on these directive-based programming models to utilize available hardware. 
+
 ------------------
 
 ## Contact
 
-To contact developers, please email to Millad Ghane (mghane2@uh.edu).
+For any questions, please reach out to Millad Ghane (mghane2@uh.edu).
