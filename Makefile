@@ -42,6 +42,7 @@ LDFLAGS=-lm
 
 CXX=pgc++
 CXXFLAGS=-m64 -std=c++11 -w
+#CXXFLAGS= -std=c++11 -w
 CXXFLAGS+=-Mllvm 
 CXXFLAGS+=-mp
 LDFLAGS=-lm

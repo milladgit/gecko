@@ -18,8 +18,8 @@ int main(int argc, char **argv) {
 
 
 	char op = '+';
-	#pragma gecko hierarchy children(op:"LocA") parent("LocHDD")
-	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
+	#pragma gecko hierarchy children(op:"LocHDD") parent("LocA")
+	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocHDD")
 	//#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
 	#pragma gecko hierarchy children(op:"LocN1") parent("LocN")
 	#pragma gecko hierarchy children(+:"LocG1","LocG2") parent("LocG")
