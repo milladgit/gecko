@@ -298,13 +298,13 @@ __geckoExecPolRange(const size_t initval, const int incremental_direction, const
 
 	int *counter = (int*) malloc(sizeof(int) * new_range_count);
 	for(int i=0;i<new_range_count;i++)
-			counter[i] = 0;
+		counter[i] = 0;
 	for(int i=0;i<old_range_count;i++)
-			counter[i%new_range_count]++;
+		counter[i%new_range_count]++;
 
 	float *new_ranges = (float*) malloc(sizeof(float) * new_range_count);
 	for(int i=0;i<new_range_count;i++)
-			new_ranges[i] = 0;
+		new_ranges[i] = 0;
 
 	int index = 0;
 	for(int i=0;i<new_range_count;i++) {
@@ -375,21 +375,21 @@ void __geckoExecPolPercent(const size_t initval, const size_t boundary, const in
 
 	int *counter = (int*) malloc(sizeof(int) * new_range_count);
 	for(int i=0;i<new_range_count;i++)
-			counter[i] = 0;
+		counter[i] = 0;
 	for(int i=0;i<old_range_count;i++)
-			counter[i%new_range_count]++;
+		counter[i%new_range_count]++;
 
 	float *new_ranges = (float*) malloc(sizeof(float) * new_range_count);
 	for(int i=0;i<new_range_count;i++)
-			new_ranges[i] = 0;
+		new_ranges[i] = 0;
 
 	int index = 0;
 	for(int i=0;i<new_range_count;i++) {
-			for(int j=0;j<counter[i];j++) {
-				new_ranges[i] += ranges[index];
-				index++;
-			}
+		for(int j=0;j<counter[i];j++) {
+			new_ranges[i] += ranges[index];
+			index++;
 		}
+	}
 
 	free(counter);
 
@@ -416,27 +416,27 @@ void __geckoExecPolPercent(const size_t initval, const size_t boundary, const in
 	start = (int) initval;
 
 	for(int dev_id=0;dev_id < new_range_count; dev_id++) {
-			if(new_ranges[dev_id] == 0)
-				continue;
+		if(new_ranges[dev_id] == 0)
+			continue;
 
-			delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
-			end = (incremental_direction ? start + delta : start - delta);
-			if(dev_id == new_range_count - 1)
-				end = (int) boundary;
+		delta = (int) floor(new_ranges[dev_id] / 100.0 * totalIterations);
+		end = (incremental_direction ? start + delta : start - delta);
+		if(dev_id == new_range_count - 1)
+			end = (int) boundary;
 
 #ifdef INFO
-			fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
-			        (end - start) * (incremental_direction ? 1 : -1)  );
-			fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[dev_id].loc);
+		fprintf(stderr, "\t\tChild %d: %s - share: %d - ", dev_id, children_names[dev_id].loc->getLocationName().c_str(),
+				(end - start) * (incremental_direction ? 1 : -1)  );
+		fprintf(stderr, "[%d, %d] at %p\n", start, end, children_names[dev_id].loc);
 #endif
-			GeckoLocation *loc = children_names[dev_id].loc;
-			const int tid = loc->getThreadID();
-			dev[tid] = loc;
-			beginLoopIndex[tid] = start;
-			endLoopIndex[tid] = end;
+		GeckoLocation *loc = children_names[dev_id].loc;
+		const int tid = loc->getThreadID();
+		dev[tid] = loc;
+		beginLoopIndex[tid] = start;
+		endLoopIndex[tid] = end;
 
-			start = end;
-		}
+		start = end;
+	}
 
 	free(new_ranges);
 }

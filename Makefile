@@ -2,8 +2,8 @@
 BIN_DIR=./bin
 LIB_DIR=./lib
 
-BINS=$(BIN_DIR)/output_test
-# BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_test_with_config
+# BINS=$(BIN_DIR)/output_test
+BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_test_with_config
 # BINS=$(BIN_DIR)/output_test $(BIN_DIR)/output_stencil
 # BINS=$(BIN_DIR)/output_stencil $(BIN_DIR)/output_dot_product $(BIN_DIR)/output_matrix_mul
 
@@ -97,8 +97,8 @@ endif
 
 
 
-# all: doTransformation lib $(BINS)
-all: lib $(BINS)
+all: doTransformation lib $(BINS)
+# all: lib $(BINS)
 
 
 $(BIN_DIR):

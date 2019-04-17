@@ -31,14 +31,15 @@ int main(int argc, char **argv) {
 
 
 	int N = atoi(argv[1]);
+
 	double *X, *Y, *Z;
 	#pragma gecko memory allocate(X[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(Y[0:N]) type(double) location("LocA") 
 	#pragma gecko memory allocate(Z[0:N]) type(double) location("LocA") 
 
 
-	gecko_double Q;
-	#pragma gecko memory allocate(Q[0:N]) type(gecko_double) location("LocA") 
+	double *Q;
+	#pragma gecko memory allocate(Q[0:N]) type(double) location("LocA")
 
 	for (int i = 0; i<N; i++) {
 		Z[i] = 0.0;
@@ -83,7 +84,7 @@ int main(int argc, char **argv) {
 	// }
 	// #pragma gecko region end
 
-	char *exec_pol_chosen = "percentage:[10,20,20,20,30]";
+	char *exec_pol_chosen = "percentage:[10,20,70]";
 
 	a = 0;
 	b = N;
@@ -93,7 +94,7 @@ int main(int argc, char **argv) {
 	// #pragma gecko region at("LocA") exec_pol("static") variable_list(Z)
 	//#pragma gecko region at("LocA") exec_pol("any") variable_list(Z)
 	// #pragma acc parallel loop reduction(+:devices_nv) reduction(+:devices_host)
-	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,20,20,30]") variable_list(Z) reduction(+:devices_nv) reduction(+:devices_host)
+	#pragma gecko region at("LocA") exec_pol("percentage:[10,20,70]") variable_list(Z) reduction(+:devices_nv) reduction(+:devices_host)
 	for (int i = a; i<b; i++) {
 		Z[i] = coeff * i;
 
