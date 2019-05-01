@@ -477,7 +477,7 @@ This project is sponsored by grants from the National Science Foundation (Award 
 
 ![](./docs/images/NSF_4-Color_bitmap_Logo_thumb.png)
 
-![](./docs/images/DOE_logo_thumb.png.png)
+![](./docs/images/DOE_logo_thumb.png)
 
 
 ------------------
