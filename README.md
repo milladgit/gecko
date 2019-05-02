@@ -473,7 +473,7 @@ Millad Ghane, Sunita Chandrasekaran, and Margaret S. Cheung. 2019. Gecko: Hierar
 ------------------
 ## Funding
 
-This project is sponsored by grants from the National Science Foundation (Award No. 1531814) and Department of Energy (Award No. DE-SC0016501).
+This project is sponsored by generous support from the National Science Foundation (Award No. 1531814) and the Department of Energy (Award No. DE-SC0016501).
 
 ![](./docs/images/NSF_4-Color_bitmap_Logo_thumb.png)
 ![](./docs/images/DOE_logo_thumb.png)
