@@ -1,6 +1,5 @@
 
 # Gecko ![Gecko Image](./docs/images/gecko.png)
-=======
 
 This repo contains Gecko Runtime Library. With help of a set of directives, Gecko addresses multi-level memory hierarchy in current and future modern architectures and platforms.
 
