@@ -18,8 +18,8 @@ int main(int argc, char **argv) {
 
 
 	char op = '+';
-	#pragma gecko hierarchy children(op:"LocA") parent("LocHDD")
-	#pragma gecko hierarchy children(op:"LocN","LocG") parent("LocA")
+	#pragma gecko hierarchy children(op:"LocHDD") parent("LocA")
+	#pragma gecko hierarchy children(op:"LocG","LocN") parent("LocHDD")
 	//#pragma gecko hierarchy children(op:"LocN1","LocN2") parent("LocN")
 	#pragma gecko hierarchy children(op:"LocN1") parent("LocN")
 	#pragma gecko hierarchy children(+:"LocG1","LocG2") parent("LocG")
@@ -80,16 +80,21 @@ int main(int argc, char **argv) {
 		a = 0;
 		b = N;
 		long total = 0;
-		#pragma gecko region exec_pol("static") variable_list(Perm,Z,Q,T1,T2_far_variable) reduction(+:total)
-		// #pragma gecko region exec_pol("static") variable_list(Perm,Z,Q) reduction(+:total)
+//		#pragma gecko region exec_pol("static") variable_list(Perm,Z,Q,T1,T2_far_variable) reduction(+:total)
+//		for (int i = a; i<b; i++) {
+//			Z[i] = Q[i] * coeff;
+//			T1[i] *= 2;
+//			T2_far_variable[i] *= 2;
+//			total += (i+1);
+//			Perm[i] = i;
+//		}
+//		#pragma gecko region end
+
+#pragma gecko region exec_pol("runtime") variable_list(Z)
 		for (int i = a; i<b; i++) {
-			Z[i] = Q[i] * coeff;
-			T1[i] *= 2;
-			T2_far_variable[i] *= 2;
-			total += (i+1);
-			Perm[i] = i;
+			Z[i] *= 2;
 		}
-		#pragma gecko region end
+#pragma gecko region end
 
 		printf("Total is %ld\n", total);
 	}

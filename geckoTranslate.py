@@ -373,9 +373,11 @@ class SourceFile(object):
 			distance = "GECKO_DISTANCE_UNKNOWN"
 
 
-
-		name_list = gREU.parseVariableString(name)
 		if name is None:
+			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
+			exit(1)
+		name_list = gREU.parseVariableString(name)
+		if name_list is None:
 			print "Line %d - Cannot recognize the variable %s" % (lineNumber, name)
 			exit(1)
 		name = name_list[0]
