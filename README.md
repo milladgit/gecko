@@ -488,4 +488,4 @@ This project is sponsored by generous support from the National Science Foundati
 
 ## Contact
 
-For any questions, please reach out to Millad Ghane (mghane2@uh.edu).
+For any questions, please reach out to Millad Ghane (mghane2@uh.edu), Sunita Chandrasekaran (Contact: schandra@udel.edu), and Margaret S. Cheung (Contact: mscheung@central.uh.edu).
